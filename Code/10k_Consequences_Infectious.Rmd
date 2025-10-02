@@ -339,28 +339,16 @@ cases_vaccine %>%
 
 ```{r}
 # Figure 10K-4
-f_caption_figure("Invasive meningococcal disease notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+f_caption_figure("Invasive meningococcal disease notification rate, Victoria, by Aboriginal and/or Torres Strait Islander status and year")
 
-figure_nephu <- cases_vaccine %>% 
+cases_vaccine %>% 
   dplyr::filter(condition == "IMD") %>% 
   #
-  f_graph_phess_rates(plot_tag   = "A",
-                      y_variable = nephu_rate,
-                      y_max      = 10,
-                      y_breaks   = 1,
-                      y_expand   = 0.125)
-
-figure_vic <- cases_vaccine %>% 
-  dplyr::filter(condition == "IMD") %>% 
-  #
-  f_graph_phess_rates(plot_tag   = "B",
+  f_graph_phess_rates(plot_tag   = NULL,
                       y_variable = vic_rate,
                       y_max      = 10,
                       y_breaks   = 1,
                       y_expand   = 0.125)
-
-figure_nephu + figure_vic + 
-  plot_layout(guides = "collect") & theme(legend.position = "bottom")
 ```
 
 #### Data notes:
