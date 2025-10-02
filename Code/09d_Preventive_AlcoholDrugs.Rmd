@@ -1,0 +1,441 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Seeking and Risk Behaviours: Alcohol and Other Drugs"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "09D Preventive AlcoholDrugs ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+ 
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 9D-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 9D-"))
+  
+  return(caption)
+  
+}
+```
+
+### What health promoting or health risk behaviours are Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment undertaking?
+
+# Alcohol Consumption
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Alcohol consumption: meeting guidelines
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+alcohol_guidelines <- f_read_natsihs_sex("Indicator_Vic_Sex_Alcohol_Guidelines.csv")
+
+# Data wrangling
+alcohol_guidelines <- alcohol_guidelines %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(exceeded_guideline_n:never_consumed_alcohol_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(exceed_n       = exceeded_guideline_n,
+                notexceed_n    = did_not_exceed_guideline_n,
+                morethanyear_n = consumed_alcohol_12_or_more_months_ago_n,
+                never_n        = never_consumed_alcohol_n) %>% 
+  #
+  dplyr::mutate(across(exceed_n:never_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("exceed"),
+                starts_with("notexceed"),
+                starts_with("morethanyear"),
+                starts_with("never"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Alcohol consumption: comparison with 12 months ago
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+alcohol_increased <- f_read_natsihs_sex("Indicator_Vic_Sex_Alcohol_Increased.csv")
+
+# Data wrangling
+alcohol_increased <- alcohol_increased %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(increased_compared_to_12_months_ago_n:stayed_the_same_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(increased_n = increased_compared_to_12_months_ago_n,
+                decreased_n = decreased_compared_to_12_months_ago_n,
+                similar_n   = stayed_the_same_n) %>% 
+  #
+  dplyr::mutate(across(increased_n:similar_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("increased"),
+                starts_with("similar"),
+                starts_with("decreased"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data are obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 31% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne exceeded the recommended alcohol consumption guidelines. This equates to approximately 8,700 Aboriginal and/or Torres Strait Islander people.
+
+- Males were more likely to have exceeded the recommended alcohol consumption guidelines than females (48% vs. 12%).
+
+- 32% (approximately 7,400 people) of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne reported that their alcohol consumption had decreased at the time of the survey compared to the same time in the previous year, and 17% (approximately 3,900 people) reported that their alcohol consumption had increased.
+
+- Males were more likely to have decreased their alcohol consumption compared to the same time in the previous year than females (38% vs. 24%).
+:::
+
+\newpage
+
+```{r}
+# Figure 9D-1
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander and who exceeded alcohol consumption guidelines, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- alcohol_guidelines %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("exceed_n", "notexceed_n", "morethanyear_n", "never_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 800,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Exceeded\nguideline", "Did not\nexceed\nguideline", 
+                              "Consumed >12\nmonths ago", "Never\nconsumed"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- alcohol_guidelines %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("exceed_prop", "notexceed_prop", "morethanyear_prop", "never_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Exceeded\nguideline", "Did not\nexceed\nguideline", 
+                              "Consumed >12\nmonths ago", "Never\nconsumed"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Alcohol consumption was assessed using the [Australian Alcohol Guidelines 2020](https://www.health.gov.au/news/australian-alcohol-guidelines-revised).
+
+    - The Guidelines provide advice about the health risks of drinking alcohol to allow people to make informed decisions about alcohol consumption.
+    
+    - The Guidelines recommend that people aged 18 years and under should not drink alcohol. In the survey, people aged 15 to 17 years were assessed against the Adult Guidelines to provide an estimate of the level of risk for this age group.
+    
+- People were considered to have exceeded the Guidelines if they had consumed:
+
+    - More than 10 standard drinks during the week prior to the survey and/or
+    
+    - Five or more standard drinks on at least 12 days during the 12 months prior to the survey.
+:::
+
+\newpage
+
+```{r}
+# Table 9D-1
+f_caption_table("Alcohol consumption for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("exceed"       = "Exceeded guideline", 
+              "notexceed"    = "Did not exceed guideline", 
+              "morethanyear" = "Consumed >12 months ago",
+              "never"        = "Never consumed", 
+              "answered"     = "Total")
+
+alcohol_guidelines %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Alcohol consumption",
+                     total_row      = 5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Alcohol consumption was assessed using the [Australian Alcohol Guidelines 2020](https://www.health.gov.au/news/australian-alcohol-guidelines-revised).
+
+    - The Guidelines provide advice about the health risks of drinking alcohol to allow people to make informed decisions about alcohol consumption.
+    
+    - The Guidelines recommend that people aged 18 years and under should not drink alcohol. In the survey, people aged 15 to 17 years were assessed against the Adult Guidelines to provide an estimate of the level of risk for this age group.
+    
+- People were considered to have exceeded the Guidelines if they had consumed:
+
+    - More than 10 standard drinks during the week prior to the survey and/or
+    
+    - Five or more standard drinks on at least 12 days during the 12 months prior to the survey.
+:::
+
+\newpage
+
+```{r}
+# Figure 9D-2
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander with increased, decreased, or similar levels of alcohol consumption at the time of survey compared to the same time in the previous year, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- alcohol_increased %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("increased_n", "similar_n", "decreased_n"),
+                     x_labels   = c("Increased", "Similar", "Decreased"),
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 150,
+                     y_title    = "Estimated number of people")
+
+figure_percent <- alcohol_increased %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("increased_prop", "similar_prop", "decreased_prop"),
+                     x_labels   = c("Increased", "Similar", "Decreased"),
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents were asked whether their alcohol consumption had increased, decreased, or was similar to the same time a year ago.
+:::
+
+```{r}
+# Table 9D-2
+f_caption_table("Alcohol consumption compared to the same time in the previous year for survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("increased" = "Increased",
+              "similar"   = "Similar",
+              "decreased" = "Decreased",
+              "answered"  = "Total")
+
+alcohol_increased %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Alcohol consumption",
+                     total_row      = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents were asked whether their alcohol consumption had increased, decreased, or was similar to the same time a year ago.
+:::
+
+\newpage
+
+# Illicit and Other Substance Use
+
+```{r}
+# ------------------------------------------------------------------------------
+# Illicit substance use
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+illicit_status <- f_read_natsihs_sex("Indicator_Vic_Sex_Illicit_Status.csv")
+
+# Data wrangling
+illicit_status <- illicit_status %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(has_used_substances_in_last_12_months_n:has_not_used_substances_in_last_12_months_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(used_n    = has_used_substances_in_last_12_months_n,
+                notused_n = has_not_used_substances_in_last_12_months_n) %>% 
+  #
+  dplyr::mutate(across(used_n:notused_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("used"),
+                starts_with("notused"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data are obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 25% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne reported that they had used substances for non-medical purposes during the 12 months prior to the survey. This equates to approximately 5,700 Aboriginal and/or Torres Strait Islander people.
+
+- Males were more likely to have used substances for non-medical purposes than females (34% vs. 14%).
+:::
+
+```{r}
+# Table 9D-3
+f_caption_table("Use of substances for non-medical purposes during the 12 months prior to the survey for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Victoria, by sex and age group, 2022-2023")
+
+x_labels <- c("used"     = "Yes",
+              "notused"  = "No",
+              "answered" = "Total")
+
+illicit_status %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Used substances",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Substances' includes illicit substances, petrol and other inhalants, analgesics/pain killers used for non-medical purposes, and tranquilisers/sleeping pills used for non-medical purposes.
+:::
+

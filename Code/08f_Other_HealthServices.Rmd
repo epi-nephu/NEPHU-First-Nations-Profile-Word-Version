@@ -1,0 +1,1968 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Other Determinants of Health: Health Service Utilisation"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "08F Other Health Services ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_phidu_iare_hospital.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_iare.R"))
+ 
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_iare.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 8F-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 8F-"))
+  
+  return(caption)
+  
+}
+```
+
+### What external factors may influence how Aboriginal and/or Torres Strait Islander people and families in the NEPHU catchment are supported to prioritise health and wellbeing, particularly in connection to caring for children and keeping families strong?
+
+# Primary Health Services
+
+```{r}
+# ------------------------------------------------------------------------------
+# HSU - usual health service
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+hsu_usual <- f_read_natsihs_sex("Indicator_Vic_Sex_HSU_Usual.csv")
+
+# Data wrangling
+hsu_usual <- hsu_usual %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(other_n    = hospital_n + traditional_healer_n + other_n,
+                answered_n = sum(across(aboriginal_medical_service_community_clinic_n:no_usual_place_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(ams_n     = aboriginal_medical_service_community_clinic_n,
+                gp_n      = doctor_gp_other_than_from_aboriginal_medical_service_n,
+                nousual_n = no_usual_place_n) %>% 
+  #
+  dplyr::mutate(across(ams_n:nousual_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("gp"),
+                starts_with("ams"),
+                starts_with("other"),
+                starts_with("nousual"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# HSU - actions taken for health in previous two weeks
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+hsu_actions <- f_read_natsihs_sex("Indicator_Vic_Sex_HSU_Actions.csv")
+
+# Data wrangling
+hsu_actions <- hsu_actions %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(hospital_n = discharged_from_hospital_inpatient_episode_n + visited_casualty_emergency_outpatients_day_clinic_n,
+                other_n    = consulted_an_alcohol_and_drug_worker_n + consulted_a_nurse_n + consulted_a_social_worker_welfare_officer_n + consulted_a_traditional_healer_n + consulted_an_other_health_professional_n,
+                answered_n = sum(across(consulted_a_gp_n:no_actions_taken_in_last_2_weeks_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(gp_n      = consulted_a_gp_n,
+                dentist_n = consulted_a_dentist_2_years_n,
+                ahw_n     = consulted_an_aboriginal_health_worker_n,
+                none_n    = no_actions_taken_in_last_2_weeks_n) %>% 
+  #
+  dplyr::mutate(across(gp_n:other_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("gp"),
+                starts_with("dentist"),
+                starts_with("ahw"),
+                starts_with("hospital"),
+                starts_with("other"),
+                starts_with("none"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# HSU - private health insurance
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+hsu_insurance <- f_read_natsihs_sex("Indicator_Vic_Sex_HSU_Insurance.csv")
+
+# Data wrangling
+hsu_insurance <- hsu_insurance %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(with_private_health_insurance_n:without_private_health_insurance_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(insurance_n   = with_private_health_insurance_n,
+                noinsurance_n = without_private_health_insurance_n) %>% 
+  #
+  dplyr::mutate(across(insurance_n:noinsurance_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("insurance"),
+                starts_with("noinsurance"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- 83% (approximately 31,900 people) of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they usually visited a general practitioner when they had a problem with their health, and a further 9.3% (approximately 3,600 people) visited an Aboriginal Medical Service or Community Clinic.
+
+- 5.7% (approximately 2,200 people) did not have a usual health care provider that they went to when they had a problem with their health, and males were more likely to not have a usual health care provider than females (7.1% vs. 4.0%).
+
+- During the two weeks prior to the survey 19% (approximately 9,200 people) of survey respondents living in Greater Melbourne consulted a general practitioner for health-related reasons and a further 9.5% (approximately 4,600 people) consulted a dentist.
+
+- Overall, 29% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne were covered by private health insurance. This equates to approximately 8,000 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to be covered by private health insurance than males (46% vs. 12%).
+:::
+
+\newpage
+
+```{r}
+# Figure 8F-1
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander and usual health care provider people go to when they have a problem with their health, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- hsu_usual %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("gp_n", "ams_n", "other_n", "nousual_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 2000,
+                     y_expand   = 1000,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("General\npractitioner", "AMS or\nCommunity\nClinic", 
+                              "Other*", "No usual place"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- hsu_usual %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("gp_prop", "ams_prop", "other_prop", "nousual_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("General\npractitioner", "AMS or\nCommunity\nClinic", 
+                              "Other*", "No usual place"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Other' includes hospitals, traditional healers, and other health service providers.
+:::
+
+```{r}
+# Table 8F-1
+f_caption_table("Usual health care provider people go to when they have a problem with their health for survey respondents who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("gp"       = "General practitioner", 
+              "ams"      = "AMS or Community Clinic", 
+              "other"    = "Other*",
+              "nousual"  = "No usual place",
+              "answered" = "Total")
+
+hsu_usual %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Health service",
+                     total_row      = 5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Other' includes hospitals, traditional healers, and other health service providers.
+:::
+
+```{r}
+# Figure 8F-2
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander and types of health professionals consulted for health-related reasons in the two weeks prior to the survey, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- hsu_actions %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("gp_n", "dentist_n", "ahw_n", "hospital_n", "other_n", "none_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 500,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("General\npractitioner", "Dentist", "Aboriginal\nHealth Worker", 
+                              "Hospital*", "Other*", "None*"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- hsu_actions %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("gp_prop", "dentist_prop", "ahw_prop", "hospital_prop", "other_prop", "none_n"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("General\npractitioner", "Dentist", "Aboriginal\nHealth Worker", 
+                              "Hospital*", "Other*", "None*"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_multipleoptions)`
+
+- 'Hospital' includes hospital admissions, emergency department presentations, outpatient clinic visits, and day clinic visits.
+
+- 'Other' includes consultations with nurses, alcohol and drug workers, social workers, welfare officers, traditional healers, and other health professionals.
+
+- 'None' includes people who did not consult any health professionals during the two weeks prior to the survey.
+:::
+
+\newpage
+
+```{r}
+# Table 8F-2
+f_caption_table("Types of health professionals consulted for health-related reasons in the two weeks prior to the survey for survey respondents who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("gp"       = "General practitioner", 
+              "dentist"  = "Dentist",
+              "ahw"      = "Aboriginal Health Worker", 
+              "hospital" = "Hospital*",
+              "other"    = "Other*",
+              "none"     = "None*",
+              "answered" = "Total")
+
+hsu_actions %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Health professional consulted",
+                     total_row      = 7)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_multipleoptions)`
+
+- 'Hospital' includes hospital admissions, emergency department presentations, outpatient clinic visits, and day clinic visits.
+
+- 'Other' includes consultations with nurses, alcohol and drug workers, social workers, welfare officers, traditional healers, and other health professionals.
+
+- 'None' includes people who did not consult any health professionals during the two weeks prior to the survey.
+:::
+
+```{r}
+# Table 8F-3
+f_caption_table("Private health insurance coverage for survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("insurance"   = "Yes", 
+              "noinsurance" = "No",
+              "answered"    = "Total")
+
+hsu_insurance %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Private health insurance",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+:::
+
+\newpage
+
+## General Practitioners and Health Professionals
+
+```{r}
+# ------------------------------------------------------------------------------
+# GP visits - time since last consultation
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+gp_status <- f_read_natsihs_sex("Indicator_Vic_Sex_GP_Status.csv")
+
+# Data wrangling
+gp_status <- gp_status %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(week2_n    = saw_gp_in_last_2_weeks_n + saw_specialist_in_last_2_weeks_but_not_a_gp_n,
+                answered_n = sum(across(saw_gp_in_last_2_weeks_n:saw_gp_more_than_12_months_ago_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(month3_n     = saw_gp_more_than_2_weeks_to_less_than_3_months_ago_n,
+                month6_n     = saw_gp_3_months_to_less_than_6_months_ago_n,
+                month12_n    = saw_gp_6_months_to_less_than_12_months_ago_n,
+                yearormore_n = saw_gp_more_than_12_months_ago_n) %>% 
+  #
+  dplyr::mutate(across(month3_n:week2_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("week2"),
+                starts_with("month3"),
+                starts_with("month6"),
+                starts_with("month12"),
+                starts_with("yearormore"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# GP visits - lifestyle topics
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+gp_topics <- f_read_natsihs_sex("Indicator_Vic_Sex_GP_Topics.csv")
+
+# Data wrangling
+gp_topics <- gp_topics %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(sexual_n   = family_planning_n + safe_sexual_practices_n,
+                answered_n = total_n - not_applicable_n - did_not_discuss_not_known_if_discussed_health_lifestyle_issues_in_last_12_months_n) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(smoking_n  = reducing_or_quitting_smoking_n,
+                alcohol_n  = drinking_alcohol_in_moderation_n,
+                drug_n     = drug_use_n,
+                weight_n   = reaching_a_healthy_weight_n,
+                activity_n = increasing_physical_activity_n,
+                diet_n     = eating_healthy_food_or_improving_diet_n) %>% 
+  #
+  dplyr::mutate(across(smoking_n:sexual_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("smoking"),
+                starts_with("alcohol"),
+                starts_with("drug"),
+                starts_with("weight"),
+                starts_with("activity"),
+                starts_with("diet"),
+                starts_with("sexual"),
+                starts_with("other"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 51% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they had visited a general practitioner or specialist during the three months prior to the survey. This equates to approximately 20,200 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely than males to have last visited a general practitioner or specialist more than 12 months prior to the survey (17% vs. 11%).
+
+- For people who had visited a general practitioner or health professional during the 12 months prior to the survey, the most common lifestyle issues discussed were increasing physical activity (56%, approximately 5,700 people), reaching a healthy weight (50%, approximately 5,000 people), and healthy eating (35%, approximately 3,500 people).
+
+- Males were more likely than females to have discussed reducing or quitting smoking (38% vs. 21%), drinking alcohol in moderation (40% vs. 13%), or substance use (37% vs. 21%), while females were more likely to have discussed reaching a healthy weight (55% vs.46%), healthy eating (53% vs. 24%), or sexual health (including family planning) (45% vs. 9.5%).
+:::
+
+```{r}
+# Figure 8F-3
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander and time since last consultation with a general practitioner or specialist, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- gp_status %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("week2_n", "month3_n", "month6_n", "month12_n", "yearormore_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 100,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Less than\n2 weeks", "2 weeks\nto 3 months", 
+                              "3 to 6\nmonths", "6 to 12\nmonths", "More than\n12 months"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- gp_status %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("week2_prop", "month3_prop", "month6_prop", "month12_prop", "yearormore_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 50,
+                     y_breaks   = 5,
+                     y_expand   = 0.5,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Less than\n2 weeks", "2 weeks\nto 3 months", 
+                              "3 to 6\nmonths", "6 to 12\nmonths", "More than\n12 months"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+:::
+
+```{r}
+# Table 8F-4
+f_caption_table("Time since last consultation with a general practitioner or specialist for survey respondents who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("week2"      = "Less than 2 weeks", 
+              "month3"     = "2 weeks to 3 months",
+              "month6"     = "3 to 6 months",
+              "month12"    = "6 to 12 months",
+              "yearormore" = "More than 12 months",
+              "answered"   = "Total")
+
+gp_status %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Time since last consultation",
+                     total_row      = 6)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+:::
+
+```{r}
+# Figure 8F-4
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander aged 15 years and over who saw a general practitioner or health professional during the 12 months prior to the survey and lifestyle issues discussed during consultation, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- gp_topics %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("smoking_n", "alcohol_n", "drug_n", "weight_n", 
+                                    "activity_n", "diet_n", "sexual_n", "other_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 500,
+                     y_expand   = 500,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Smoking", "Alcohol", "Substance use", "Healthy weight", 
+                              "Physical activity", "Healthy eating", "Sexual health*", "Other"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- gp_topics %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("smoking_prop", "alcohol_prop", "drug_prop", "weight_prop", 
+                                    "activity_prop", "diet_prop", "sexual_prop", "other_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Smoking", "Alcohol", "Substance use", "Healthy weight", 
+                              "Physical activity", "Healthy eating", "Sexual health*", "Other"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_multipleoptions)`
+
+- 'Sexual health' includes discussion of safe sexual practices and family planning.
+:::
+
+```{r}
+# Table 8F-5
+f_caption_table("Lifestyle issues discussed during consultation for survey respondents aged 15 years and over who saw a general practitioner or health professional during the 12 months prior to the survey and who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("smoking"  = "Smoking", 
+              "alcohol"  = "Alcohol",
+              "drug"     = "Substance use",
+              "weight"   = "Healthy weight",
+              "activity" = "Physical activity",
+              "diet"     = "Healthy eating",
+              "sexual"   = "Sexual health*",
+              "other"    = "Other",
+              "answered" = "Total")
+
+gp_topics %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Lifestyle issue",
+                     total_row      = 9)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_multipleoptions)`
+
+- 'Sexual health' includes discussion of safe sexual practices and family planning.
+:::
+
+\newpage
+
+## Dentists and Dental Professionals
+
+```{r}
+# ------------------------------------------------------------------------------
+# Dentist visits- time since last consultation
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+dentist_status <- f_read_natsihs_sex("Indicator_Vic_Sex_Dentist_Status.csv")
+
+# Data wrangling
+dentist_status <- dentist_status %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(last_2_weeks_n:never_seen_health_professional_about_teeth_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(week2_n     = last_2_weeks_n,
+                month3_n    = more_than_2_weeks_to_less_than_3_months_ago_n,
+                month6_n    = x3_months_to_less_than_6_months_ago_n,
+                month12_n   = x6_months_to_less_than_12_months_ago_n,
+                year2_n     = x12_months_to_less_than_2_years_ago_n,
+                moreyear2_n = x2_years_ago_or_more_n,
+                never_n     = never_seen_health_professional_about_teeth_n) %>% 
+  #
+  dplyr::mutate(across(week2_n:never_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("week2"),
+                starts_with("month3"),
+                starts_with("month6"),
+                starts_with("month12"),
+                starts_with("year2"),
+                starts_with("moreyear2"),
+                starts_with("never"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Dentist visits - location of last consultation
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+dentist_type <- f_read_natsihs_sex("Indicator_Vic_Sex_Dentist_Type.csv")
+
+# Data wrangling
+dentist_type <- dentist_type %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(private_dental_clinic_including_specialist_n:other_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(private_n    = private_dental_clinic_including_specialist_n,
+                government_n = government_dental_clinic_including_dental_hospital_n,
+                school_n     = school_dental_clinic_n,
+                ams_n        = dentist_at_aboriginal_or_torres_strait_islander_medical_service_or_community_clinic_n) %>% 
+  #
+  dplyr::mutate(across(private_n:other_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("private"),
+                starts_with("government"),
+                starts_with("school"),
+                starts_with("ams"),
+                starts_with("other"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 40% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they had visited a dentist or dental professional during the six months prior to the survey. This equates to approximately 15,000 Aboriginal and/or Torres Strait Islander people.
+
+- Males were more likely than females to have never seen a dentist or dental professional (5.4% vs. 2.9%).
+
+- For Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne who had ever visited a dentist or dental professional, 54% (approximately 19,300 people) attended their most recent consultation at a private dental clinic, and a further 23% (approximately 8,200 people) attended a government clinic or dental hospital.
+
+- Males were more likely than females to have attended an Aboriginal Medical Service (AMS) or Community Clinic for their most recent consultation (13% vs. 7.7%).
+:::
+
+```{r}
+# Figure 8F-5
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander and time since last consultation with a dentist or dental professional, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- dentist_status %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("week2_n", "month3_n", "month6_n", "month12_n", "year2_n", "moreyear2_n", "never_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 100,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Less than\n2 weeks", "2 weeks\nto 3 months", "3 to 6\nmonths",
+                              "6 to 12\nmonths", "12 months\nto 2 years", "More than\n2 years", "Never"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- dentist_status %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("week2_prop", "month3_prop", "month6_prop", "month12_prop", "year2_prop", "moreyear2_prop", "never_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 50,
+                     y_breaks   = 5,
+                     y_expand   = 0.5,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Less than\n2 weeks", "2 weeks\nto 3 months", "3 to 6\nmonths",
+                              "6 to 12\nmonths", "12 months\nto 2 years", "More than\n2 years", "Never"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+:::
+
+\newpage
+
+```{r}
+# Table 8F-6
+f_caption_table("Time since last consultation with a dentist or dental professional for survey respondents who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("week2"     = "Less than 2 weeks", 
+              "month3"    = "2 weeks to 3 months",
+              "month6"    = "3 to 6 months",
+              "month12"   = "6 to 12 months",
+              "year2"     = "12 months to 2 years",
+              "moreyear2" = "More than 2 years",
+              "never"     = "Never",
+              "answered"  = "Total")
+
+dentist_status %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Time since last consultation",
+                     total_row      = 8)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+:::
+
+```{r}
+# Figure 8F-6
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander and place of last consultation with a dentist or dental professional, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- dentist_type %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("private_n", "government_n", "school_n", "ams_n", "other_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 500,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Private\nclinic", "Government\nclinic or dental\nhospital", "School\nclinic",
+                              "AMS or\nCommunity\nClinic", "Other"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- dentist_type %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("private_prop", "government_prop", "school_prop", "ams_prop", "other_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Private\nclinic", "Government\nclinic or dental\nhospital", "School\nclinic",
+                              "AMS or\nCommunity\nClinic", "Other"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+:::
+
+\newpage
+
+```{r}
+# Table 8F-7
+f_caption_table("Place of last consultation with a dentist or dental professional for survey respondents who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("private"    = "Private clinic", 
+              "government" = "Government clinic or dental hospital",
+              "school"     = "School clinic",
+              "ams"        = "AMS or Community Clinic",
+              "other"      = "Other",
+              "answered"   = "Total")
+
+dentist_type %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Place of last consultation",
+                     total_row      = 6)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+:::
+
+\newpage
+
+## Mental Health Services
+
+```{r}
+# ------------------------------------------------------------------------------
+# Mental health services - lifetime
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+mental_status <- f_read_natsihs_sex("Indicator_Vic_Sex_Mental_Status.csv")
+
+# Data wrangling
+mental_status <- mental_status %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(has_accessed_used_health_services_for_mental_health_condition_n:has_never_accessed_used_health_services_for_mental_health_condition_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(service_n   = has_accessed_used_health_services_for_mental_health_condition_n,
+                noservice_n = has_never_accessed_used_health_services_for_mental_health_condition_n) %>% 
+  #
+  dplyr::mutate(across(service_n:noservice_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("service"),
+                starts_with("noservice"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Mental health services - type of services used in previous 12 months
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+mental_service <- f_read_natsihs_sex("Indicator_Vic_Sex_Mental_Service.csv")
+
+# Data wrangling
+mental_service <- mental_service %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(other_n    = mental_health_nurse_n + traditional_healer_n + other_n,
+                answered_n = total_n - not_applicable_n - did_not_access_services_for_own_mental_health_in_the_last_12_months_n) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(counselling_n = counselling_service_n,
+                gp_n          = general_practitioner_for_mental_health_n,
+                ams_n         = aboriginal_medical_service_community_clinic_n,
+                psych_n       = psychiatrist_psychologist_n) %>% 
+  #
+  dplyr::mutate(across(counselling_n:other_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("counselling"),
+                starts_with("gp"),
+                starts_with("ams"),
+                starts_with("psych"),
+                starts_with("other"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data are obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 57% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne reported that they had used or accessed a health service for mental health related conditions during their lifetime. This equates to approximately 14,200 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely than males to have ever used or accessed a health service for mental health related conditions (66% vs. 49%).
+
+- For Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne who had accessed or used health services for their own mental health during the 12 months prior to the survey, the most common services were counselling services (71%, approximately 5,500 people) and general practitioners (56%, approximately 4,300 people).
+:::
+
+```{r}
+# Table 8F-8
+f_caption_table("Whether ever used or accessed health services for mental health conditions for survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("service"   = "Yes", 
+              "noservice" = "No",
+              "answered"  = "Total")
+
+mental_status %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Accessed health service",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+:::
+
+\newpage
+
+```{r}
+# Figure 8F-7
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander and types of health services accessed for their own mental health during the 12 months prior to the survey, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- mental_service %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("counselling_n", "gp_n", "ams_n", "psych_n", "other_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 500,
+                     y_expand   = 500,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Counselling\nservice", "General\npractitioner", "AMS or\nCommunity\nClinic",
+                              "Psychiatrist or\npsychologist", "Other*"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- mental_service %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("counselling_prop", "gp_prop", "ams_prop", "psych_prop", "other_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Counselling\nservice", "General\npractitioner", "AMS or\nCommunity\nClinic",
+                              "Psychiatrist or\npsychologist", "Other*"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_multipleoptions)`
+
+- 'Other' includes mental health nurses, traditional healers, and other health professionals.
+:::
+
+\newpage
+
+```{r}
+# Table 8F-9
+f_caption_table("Types of health services accessed for their own mental health during the 12 months prior to the survey for survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("counselling" = "Counselling service", 
+              "gp"          = "General practitioner",
+              "ams"         = "AMS or Community Clinic",
+              "psych"       = "Psychiatrist or psychologist",
+              "other"       = "Other*",
+              "answered"    = "Total")
+
+mental_service %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Type of health service",
+                     total_row      = 6)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_multipleoptions)`
+
+- 'Other' includes mental health nurses, traditional healers, and other health professionals.
+:::
+
+\newpage
+
+# Hospital Admissions
+
+## All Admissions
+
+```{r}
+# ------------------------------------------------------------------------------
+# Hospitalisations - total admissions
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_total <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_sex",
+                                             column_select = "total_admissions_excluding_same_day_admissions_for_renal_dialysis_aboriginal_persons")
+
+# Data wrangling
+hospital_total <- hospital_total %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>%
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_total %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$melbourne_n <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(n)
+
+results$melbourne_rate <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(rate)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 44,104 hospital admissions for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 5,874 (Northcote/Preston/Whittlesea IARE) to 733 (Whitehorse IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 34,280 per 100,000 population (Melbourne/Port Phillip IARE) to 21,370 per 100,000 population (Knox IARE).
+
+- 5 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Northcote/Preston/Whittlesea, Moreland/Broadmeadows, Craigieburn/Sunbury, and Whitehorse IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 8F-8
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_total %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 1000,
+               y_expand   = 250,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_total %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 5000,
+               y_expand   = 1500,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+:::
+
+\newpage
+
+```{r}
+# Table 8F-10
+f_caption_table("Hospital admissions for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_total %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 0)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+:::
+
+\newpage
+
+## Acute Potentially Preventable Conditions
+
+```{r}
+# ------------------------------------------------------------------------------
+# Hospitalisations - acute preventable admissions
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_acute <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_acute_prev",
+                                             column_select = "admissions_for_total_acute_conditions_aboriginal_people")
+
+# Data wrangling
+hospital_acute <- hospital_acute %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>%
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_acute %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$melbourne_n <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(n)
+
+results$melbourne_rate <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(rate)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 2,247 hospital admissions for acute potentially preventable conditions for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 340 (Northcote/Preston/Whittlesea IARE) to 34 (Maroondah IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 1,914 per 100,000 population (Northcote/Preston/Whittlesea IARE) to 1,015 per 100,000 population (Maroondah IARE).
+
+- 3 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Northcote/Preston/Whittlesea, Moreland/Broadmeadows, and Whitehorse IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 8F-9
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for acute potentially preventable conditions for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_acute %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 50,
+               y_expand   = 15,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_acute %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 250,
+               y_expand   = 125,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Admissions for 'acute preventable conditions' are defined as those with a principal diagnosis code in the following list, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en):
+
+    - Cellulitis: L02, L03, L04, L08, L88, L98.0, L98.3
+    
+    - Convulsions and epilepsy: G40, G41, R56
+    
+    - Dental conditions: K02, K03, K04, K05, K06, K08, K09.8, K09.9, K12, K13, K14.0
+    
+    - Ear, nose, and throat infections: H66, J02, J03, J06, J31.2
+    
+    - Eclampsia: O15
+    
+    - Gangrene: I70.2, R02
+    
+    - Pelvic inflammatory disease: N70, N73, N74
+    
+    - Perforated/bleeding ulcers: K25.0, K25.1, K25.2, K25.4, K25.5, K25.6, K26.0, K26.1, K26.2, K26.4, K26.5, K26.6, K27.0, K27.1, K27.2, K27.4, K27.5, K27.6, K28.0, K28.1, K28.2, K28.4, K28.5, K28.6
+    
+    - Pneumonia (not vaccine-preventable): J15.3, J15.4, J15.7, J16.0
+    
+    - Urinary tract infections (including pyelonephritis): N10, N11, N12, N13.6, N15.1, N15.9, N28.9, N39.0, N39.9
+:::
+
+\newpage
+
+```{r}
+# Table 8F-11
+f_caption_table("Hospital admissions for acute potentially preventable conditions for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_acute %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 0)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Admissions for 'acute preventable conditions' are defined as those with a principal diagnosis code in the following list, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en):
+
+    - Cellulitis: L02, L03, L04, L08, L88, L98.0, L98.3
+    
+    - Convulsions and epilepsy: G40, G41, R56
+    
+    - Dental conditions: K02, K03, K04, K05, K06, K08, K09.8, K09.9, K12, K13, K14.0
+    
+    - Ear, nose, and throat infections: H66, J02, J03, J06, J31.2
+    
+    - Eclampsia: O15
+    
+    - Gangrene: I70.2, R02
+    
+    - Pelvic inflammatory disease: N70, N73, N74
+    
+    - Perforated/bleeding ulcers: K25.0, K25.1, K25.2, K25.4, K25.5, K25.6, K26.0, K26.1, K26.2, K26.4, K26.5, K26.6, K27.0, K27.1, K27.2, K27.4, K27.5, K27.6, K28.0, K28.1, K28.2, K28.4, K28.5, K28.6
+    
+    - Pneumonia (not vaccine-preventable): J15.3, J15.4, J15.7, J16.0
+    
+    - Urinary tract infections (including pyelonephritis): N10, N11, N12, N13.6, N15.1, N15.9, N28.9, N39.0, N39.9
+:::
+
+\newpage
+
+## Chronic Potentially Preventable Conditions
+
+```{r}
+# ------------------------------------------------------------------------------
+# Hospitalisations - chronic preventable admissions
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_chronic <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_chronic_prev",
+                                               column_select = "admissions_for_total_chronic_conditions_aboriginal_people")
+
+# Data wrangling
+hospital_chronic <- hospital_chronic %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>%
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_chronic %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$melbourne_n <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(n)
+
+results$melbourne_rate <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(rate)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 2,096 hospital admissions for chronic potentially preventable conditions for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 403 (Northcote/Preston/Whittlesea IARE) to 24 (Whitehorse IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 2,682 per 100,000 population (Maroondah IARE) to 534 per 100,000 population (Melbourne East IARE).
+
+- 4 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Maroondah, Northcote/Preston/Whittlesea, Craigieburn/Sunbury, and Moreland/Broadmeadows IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 8F-10
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for chronic potentially preventable conditions for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_chronic %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 50,
+               y_expand   = 55,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_chronic %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 500,
+               y_expand   = 375,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Admissions for 'chronic preventable conditions' are defined as those with a principal diagnosis code in the following list, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en):
+
+    - Angina: I20, I24.0, I24.8, I24.9
+    
+    - Asthma: J45, J46
+    
+    - Bronchiectasis: J20, J47
+    
+    - Chronic obstructive pulmonary disease: J41, J42, J43, J44
+    
+    - Congestive heart failure: I11.0, I50, J81
+    
+    - Diabetes complications: E10, E11, E13, E14
+    
+    - Hypertension: I10, I11.9
+    
+    - Iron deficiency anaemia: D50.1, D50.8, D50.9
+    
+    - Nutritional deficiencies: E40, E41, E42, E43, E55.0, E64.3
+    
+    - Rheumatic heart disease: I00, I01, I02, I05, I06, I07, I08, I09
+:::
+
+\newpage
+
+```{r}
+# Table 8F-12
+f_caption_table("Hospital admissions for chronic potentially preventable conditions for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_chronic %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 0)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Admissions for 'chronic preventable conditions' are defined as those with a principal diagnosis code in the following list, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en):
+
+    - Angina: I20, I24.0, I24.8, I24.9
+    
+    - Asthma: J45, J46
+    
+    - Bronchiectasis: J20, J47
+    
+    - Chronic obstructive pulmonary disease: J41, J42, J43, J44
+    
+    - Congestive heart failure: I11.0, I50, J81
+    
+    - Diabetes complications: E10, E11, E13, E14
+    
+    - Hypertension: I10, I11.9
+    
+    - Iron deficiency anaemia: D50.1, D50.8, D50.9
+    
+    - Nutritional deficiencies: E40, E41, E42, E43, E55.0, E64.3
+    
+    - Rheumatic heart disease: I00, I01, I02, I05, I06, I07, I08, I09
+:::
+
+\newpage
+
+# Emergency Presentations
+
+## All Presentations
+
+```{r}
+# ------------------------------------------------------------------------------
+# ED presentations - all presentations
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+emergency_total <- f_read_phidu_iare_hospital(data_sheet    = "ED_total",
+                                              column_select = "emergency_department_presentations_total_presentations_aboriginal_people")
+
+# Data wrangling
+emergency_total <- emergency_total %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>%
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- emergency_total %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$melbourne_n <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(n)
+
+results$melbourne_rate <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(rate)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator are obtained from the PHIDU Social Health Atlas, compiled from the AIHW National Non-Admitted Patient Emergency Department Care Database.
+
+- Between 01 July 2019 and 30 June 2020 there were 14,308 emergency department presentations for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 2,098 (Northcote/Preston/Whittlesea IARE) to 175 (Whitehorse IARE).
+
+- The age-standardised rate of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 57,485 per 100,000 population (Melbourne/Port Phillip IARE) to 33,003 per 100,000 population (Melbourne East IARE).
+
+- 4 of the 10 IAREs in the NEPHU catchment area had an age-standardised presentation rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Northcote/Preston/Whittlesea, Melbourne North-East, and Moreland/Broadmeadows IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 8F-11
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of emergency department presentations for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+figure_number <- emergency_total %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 250,
+               y_expand   = 200,
+               y_title    = "Number of presentations",
+               plot_tag   = "A")
+
+figure_rate <- emergency_total %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 10000,
+               y_expand   = 3500,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+:::
+
+\newpage
+
+```{r}
+# Table 8F-13
+f_caption_table("Emergency department presentations for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+emergency_total %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 0)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\npresentations", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+:::
+
+\newpage
+
+## Urgent Presentations
+
+```{r}
+# ------------------------------------------------------------------------------
+# ED presentations - urgent presentations
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+emergency_urgent <- f_read_phidu_iare_hospital(data_sheet    = "ED_urgent",
+                                               column_select = "emergency_department_presentations_total_urgent_presentations_aboriginal_people")
+
+# Data wrangling
+emergency_urgent <- emergency_urgent %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>%
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- emergency_urgent %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$melbourne_n <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(n)
+
+results$melbourne_rate <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(rate)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the AIHW National Non-Admitted Patient Emergency Department Care Database.
+
+- Between 01 July 2019 and 30 June 2020 there were 6,139 urgent emergency department presentations for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 954 (Northcote/Preston/Whittlesea IARE) to 90 (Whitehorse IARE).
+
+- The age-standardised rate of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 25,679 per 100,000 population (Melbourne/Port Phillip IARE) to 14,616 per 100,000 population (Melbourne East IARE).
+
+- 4 of the 10 IAREs in the NEPHU catchment area had an age-standardised presentation rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Northcote/Preston/Whittlesea, Melbourne North-East, and Moreland/Broadmeadows IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 8F-12
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of urgent emergency department presentations for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+figure_number <- emergency_urgent %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 100,
+               y_expand   = 75,
+               y_title    = "Number of presentations",
+               plot_tag   = "A")
+
+figure_rate <- emergency_urgent %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 2500,
+               y_expand   = 100,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+- 'Urgent emergency presentations' are defined as those with a triage category of urgent (requiring treatment within 30 minutes of arrival).
+:::
+
+\newpage
+
+```{r}
+# Table 8F-14
+f_caption_table("Urgent emergency department presentations for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+emergency_urgent %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 0)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\npresentations", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- 'Urgent emergency presentations' are defined as those with a triage category of urgent (requiring treatment within 30 minutes of arrival).
+:::
+

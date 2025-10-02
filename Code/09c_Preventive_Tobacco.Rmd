@@ -1,0 +1,518 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Seeking and Risk Behaviours: Smoking and Vaping"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "09C Preventive Tobacco ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+ 
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 9C-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 9C-"))
+  
+  return(caption)
+  
+}
+```
+
+### What health promoting or health risk behaviours are Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment undertaking?
+
+# Smoking
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Smoking status - current
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+smoking_current <- f_read_natsihs_sex("Indicator_Vic_Sex_Smoking_Current.csv")
+
+# Data wrangling
+smoking_current <- smoking_current %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(currentsmoker_n = sum(across(current_smoker_daily_n:current_smoker_less_than_weekly_n)),
+                answered_n      = sum(across(current_smoker_daily_n:never_smoked_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(exsmoker_n  = ex_smoker_n,
+                nonsmoker_n = never_smoked_n) %>% 
+  #
+  dplyr::mutate(across(current_smoker_daily_n:currentsmoker_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("currentsmoker"),
+                starts_with("exsmoker"),
+                starts_with("nonsmoker"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Smoking status - lifetime
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+smoking_lifetime <- f_read_natsihs_sex("Indicator_Vic_Sex_Smoking_Lifetime.csv")
+
+# Data wrangling
+smoking_lifetime <- smoking_lifetime %>% 
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(smokemore_n = smoked_at_least_100_cigarettes_in_entire_life_n,
+                smokeless_n = has_not_smoked_at_least_100_cigarettes_in_entire_life_n,
+                nonsmoker_n = not_applicable_n,
+                answered_n  = total_n) %>% 
+  #
+  dplyr::mutate(across(nonsmoker_n:smokeless_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("smokemore"),
+                starts_with("smokeless"),
+                starts_with("nonsmoker"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Smoking status - quit attempts in past 12 months
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+smoking_quit <- f_read_natsihs_sex("Indicator_Vic_Sex_Smoking_Quit.csv")
+
+# Data wrangling
+smoking_quit <- smoking_quit %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(attempted_to_quit_smoking_in_the_last_12_months_n:did_not_attempt_to_quit_smoking_in_the_last_12_months_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(attemptquit_n   = attempted_to_quit_smoking_in_the_last_12_months_n,
+                noattemptquit_n = did_not_attempt_to_quit_smoking_in_the_last_12_months_n) %>% 
+  #
+  dplyr::mutate(across(attemptquit_n:noattemptquit_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("attemptquit"),
+                starts_with("noattemptquit"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 25% of Aboriginal and/or Torres Strait Islander adult survey respondents (aged 15 years and over) living in Greater Melbourne had smoked at least 100 cigarettes during their lifetime. This equates to approximately 9,600 Aboriginal and/or Torres Strait Islander adults in Victoria.
+
+- 25% of Aboriginal and/or Torres Strait Islander survey respondents who had ever smoked were current smokers. This equates to approximately 6,600 Aboriginal and/or Torres Strait Islander adults.
+
+- Males were more likely to be current smokers than females (33% vs. 16%).
+
+- 56% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne who were current smokers reported that they had attempted to quit smoking in the previous 12 months. Males were more likely to have attempted to quit smoking than females (60% vs. 48%).
+:::
+
+\newpage
+
+```{r}
+# Figure 9C-1
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander in each smoking status category, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- smoking_current %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("currentsmoker_n", "exsmoker_n", "nonsmoker_n"),
+                     x_labels   = c("Current\nsmoker", "Former\nsmoker", "Non\nsmoker"),
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 400,
+                     y_title    = "Estimated number of people")
+
+figure_percent <- smoking_current %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("currentsmoker_prop", "exsmoker_prop", "nonsmoker_prop"),
+                     x_labels   = c("Current\nsmoker", "Former\nsmoker", "Non\nsmoker"),
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Smoking' includes the use of manufactured (packet) cigarettes, roll-your-own cigarettes, pipes, cigars, and other smoked tobacco products.
+
+- Chewing tobacco and smoking of non-tobacco products (e.g. marijuana) are excluded.
+
+- Smoking status was classified as:
+
+    - Current smoker: a person who reported they currently smoked cigarettes, pipes, cigars or other tobacco products.
+
+    - Former smoker: a person who reported they did not currently smoke but had either previously regularly smoked daily, smoked at least 100 cigarettes in their lifetime, or smoked pipes, cigars or other tobacco products at least 20 times in their lifetime.
+
+    - Non smoker: a person who reported they had never regularly smoked daily, smoked less than 100 cigarettes in their lifetime, and smoked pipes, cigars or other tobacco products less than 20 times in their lifetime.
+:::
+
+\newpage
+
+```{r}
+# Table 9C-1
+f_caption_table("Lifetime smoking status for survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("smokemore" = "More than 100 cigarettes",
+              "smokeless" = "Less than 100 cigarettes",
+              "nonsmoker" = "Non smoker",
+              "answered"  = "Total")
+
+smoking_lifetime %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Smoking status",
+                     total_row      = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Smoking' includes the use of manufactured (packet) cigarettes, roll-your-own cigarettes, pipes, cigars, and other smoked tobacco products.
+
+- Chewing tobacco and smoking of non-tobacco products (e.g. marijuana) are excluded.
+:::
+
+```{r}
+# Table 9C-2
+f_caption_table("Current smoking status for survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("currentsmoker" = "Current smoker",
+              "exsmoker"      = "Former smoker",
+              "nonsmoker"     = "Non smoker",
+              "answered"      = "Total")
+
+smoking_current %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Smoking status",
+                     total_row      = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Smoking' includes the use of manufactured (packet) cigarettes, roll-your-own cigarettes, pipes, cigars, and other smoked tobacco products.
+
+- Chewing tobacco and smoking of non-tobacco products (e.g. marijuana) are excluded.
+
+- Smoking status was classified as:
+
+    - Current smoker: a person who reported they currently smoked cigarettes, pipes, cigars or other tobacco products.
+
+    - Former smoker: a person who reported they did not currently smoke but had either previously regularly smoked daily, smoked at least 100 cigarettes in their lifetime, or smoked pipes, cigars or other tobacco products at least 20 times in their lifetime.
+
+    - Non smoker: a person who reported they had never regularly smoked daily, smoked less than 100 cigarettes in their lifetime, and smoked pipes, cigars or other tobacco products less than 20 times in their lifetime.
+:::
+
+\newpage
+
+```{r}
+# Table 9C-3
+f_caption_table("Attempts to quit smoking for survey respondents aged 15 years and over who were current smokers and who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("attemptquit"   = "Yes",
+              "noattemptquit" = "No",
+              "answered"      = "Total")
+
+smoking_quit %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Quit attempt in\npast 12 months",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- The population for this indicator is people aged 15 years and over who reported smoking at any time during the 12 months prior to the survey.
+
+- 'Smoking' includes the use of manufactured (packet) cigarettes, roll-your-own cigarettes, pipes, cigars, and other smoked tobacco products.
+
+- Chewing tobacco and smoking of non-tobacco products (e.g. marijuana) are excluded.
+:::
+
+\newpage
+
+# Vaping
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Vaping status - current
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+vaping_current <- f_read_natsihs_sex("Indicator_Vic_Sex_Vaping_Current.csv")
+
+# Data wrangling
+vaping_current <- vaping_current %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(currently_using_an_e_cigarette_vape_n:not_currently_using_an_e_cigarette_vape_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(vape_n   = currently_using_an_e_cigarette_vape_n,
+                novape_n = not_currently_using_an_e_cigarette_vape_n) %>% 
+  #
+  dplyr::mutate(across(vape_n:novape_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("vape"),
+                starts_with("novape"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Vaping status - lifetime
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+vaping_lifetime <- f_read_natsihs_sex("Indicator_Vic_Sex_Vaping_Lifetime.csv")
+
+# Data wrangling
+vaping_lifetime <- vaping_lifetime %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(has_used_an_e_cigarette_vape_n:has_never_used_an_e_cigarette_vape_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(vape_n   = has_used_an_e_cigarette_vape_n,
+                novape_n = has_never_used_an_e_cigarette_vape_n) %>% 
+  #
+  dplyr::mutate(across(vape_n:novape_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("vape"),
+                starts_with("novape"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 36% of Aboriginal and/or Torres Strait Islander adult survey respondents (aged 15 years and over) living in Greater Melbourne had ever used a vaping device or e-cigarette. This equates to approximately 9,900 Aboriginal and/or Torres Strait Islander adults in VIctoria.
+
+- Males were more likely to have ever used a vaping device or e-cigarette than females (45% vs. 25%).
+
+- 43% of Aboriginal and/or Torres Strait Islander survey respondents who had ever used a vaping device or e-cigarette reported that they were current users. This equates to approximately 4,300 Aboriginal and/or Torres Strait Islander adults.
+
+- Females were more likely to be current users of vaping devices or e-cigarettes than males (62% vs. 32%).
+:::
+
+```{r}
+# Table 9C-4
+f_caption_table("Lifetime vaping status for survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("vape"     = "Ever used",
+              "novape"   = "Never used",
+              "answered" = "Total")
+
+vaping_lifetime %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Vaping status",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Vaping' includes the use of either e-cigarettes or vaping devices containing nicotine, cannabis, cannabis/tobacco combinations, or non-nicotine products (e.g. menthol, other flavoured products). Devices that contain other illicit substances are excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 9C-5
+f_caption_table("Current vaping status for survey respondents aged 15 years and over who had ever used an e-cigarette or vaping device and who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("vape"     = "Current user",
+              "novape"   = "Non user",
+              "answered" = "Total")
+
+vaping_current %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Vaping status",
+                     total_row      = 3) %>% 
+  #
+  flextable::colformat_double(j = c(3, 5, 7),
+                              digits = 1)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Vaping' includes the use of either e-cigarettes or vaping devices containing nicotine, cannabis, cannabis/tobacco combinations, or non-nicotine products (e.g. menthol, other flavoured products). Devices that contain other illicit substances are excluded.
+:::
+

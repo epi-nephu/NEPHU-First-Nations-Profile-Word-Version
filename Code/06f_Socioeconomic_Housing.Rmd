@@ -1,0 +1,1510 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Socioeconomic Determinants of Health: Housing"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "06F Socioeconomic Housing ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_ctg_target.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_expected.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_grouped.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_agesex.R"))
+ 
+source(here::here("Code", "Functions", "Tables", "f_table_expected.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_grouped_lga.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+officer::block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 6F-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 6F-"))
+  
+  return(caption)
+  
+}
+```
+
+### Are Aboriginal and/or Torres Strait people in the NEPHU catchment living in affordable and suitable housing?
+
+# Housing Suitability
+
+## Overcrowding
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 9A: By 2031, increase the proportion of Aboriginal and Torres Strait Islander people living in appropriately sized (not overcrowded) housing to 88%.
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Overcrowding
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in TableBuilder data
+suitability_overcrowded <- f_read_census_lga("Aboriginal_Household_Overcrowding_LGA.csv",
+                                              variable = "overcrowding") %>% 
+  #
+  dplyr::filter(!overcrowding %in% c("Not stated", "Not applicable", "Unable to determine")) %>%
+  #
+  dplyr::mutate(overcrowding = dplyr::case_when(
+    overcrowding == "Four or more extra bedrooms needed" ~ "No",
+    overcrowding == "Three extra bedrooms needed"        ~ "No",
+    overcrowding == "Two extra bedrooms needed"          ~ "No",
+    overcrowding == "One extra bedroom needed"           ~ "No",
+    overcrowding == "No bedrooms needed or spare"        ~ "Yes",
+    overcrowding == "One bedroom spare"                  ~ "Yes",
+    overcrowding == "Two bedrooms spare"                 ~ "Yes",
+    overcrowding == "Three bedrooms spare"               ~ "Yes",
+    overcrowding == "Four or more bedrooms spare"        ~ "Yes",
+    #
+    TRUE ~ NA_character_))
+
+# Data wrangling - by LGA
+suitability_overcrowded <- suitability_overcrowded %>% 
+  f_wrangle_census_lga(variable = overcrowding,
+                       level    = "household",
+                       dichot   = "yes")
+```
+
+
+```{r}
+#
+results <- list()
+data    <- suitability_overcrowded
+
+results$nephu_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_n)
+
+results$nephu_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_prop)
+
+results$non_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(non_aboriginal_prop)
+
+results$comp_non <- dplyr::case_when(
+  results$nephu_prop < results$non_prop * 0.9 ~ "lower than for",
+  results$nephu_prop > results$non_prop * 1.1 ~ "higher than for",
+  TRUE ~ "similar to")
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, `r round(results$nephu_prop, digits = 0)`% (n = `r formatC(results$nephu_n, big.mark = ",")`) of households in the NEPHU catchment with at least one member who identified as Aboriginal and/or Torres Strait Islander in the Census had an adequate number of bedrooms. This is `r results$comp_non` non-Indigenous households in the NEPHU catchment (`r round(results$non_prop, digits = 0)`%).
+
+- The number of Aboriginal and Torres Strait Islander households in different LGAs within the NEPHU catchment with an adequate number of bedrooms ranged from 917 (Whittlesea LGA) to 155 (Manningham LGA).
+
+- The gap between the observed number of Aboriginal and/or Torres Strait Islander households and the number expected if the rate was the same as for non-Indigenous households was biggest for Yarra Ranges and Darebin LGAs.
+
+- The percentage of Aboriginal and Torres Strait Islander households in different LGAs within the NEPHU catchment with an adequate number of bedrooms ranged from 98% (Boroondara LGA) to 91% (Hume LGA).
+
+- All 12 LGAs in the NEPHU catchment were above the Closing the Gap target of 88%.
+:::
+
+\newpage
+
+```{r}
+# Figure 6F-1
+f_caption_figure("(A) Number and (B) percentage of Aboriginal and/or Torres Strait Islander households with an adequate number of bedrooms, NEPHU catchment, by LGA, 2021")
+
+figure_number <- suitability_overcrowded %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 100,
+              y_expand   = 100,
+              y_title    = "Number of households",
+              plot_tag   = "A")
+
+figure_percent <- suitability_overcrowded %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 100,
+              y_breaks   = 10,
+              y_expand   = 1,
+              y_title    = "Percentage of households",
+              plot_tag   = "B") %>% 
+  #
+  f_graph_ctg_target(ctg_target = 88)
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- ‘Appropriately sized households’ were defined as those where extra bedrooms were not required.
+
+- The Closing the Gap Target (88%) is marked with a dashed blue line in Chart B.
+:::
+
+```{r}
+# Figure 6F-2
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander households with an adequate number of bedrooms, NEPHU catchment, by LGA, 2021")
+
+suitability_overcrowded %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_title  = "Number of households",
+                   y_breaks = 100,
+                   y_expand = 75)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- ‘Appropriately sized households’ were defined as those where extra bedrooms were not required.
+:::
+
+```{r}
+# Table 6F-1
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander households with an adequate number of bedrooms, NEPHU catchment, by LGA, 2021")
+
+suitability_overcrowded %>%
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- ‘Appropriately sized households’ were defined as those where extra bedrooms were not required.
+:::
+
+\newpage
+
+## Housing Quality
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Housing of acceptable standard
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+suitability_acceptable <- f_read_natsihs_sex("Indicator_Vic_Sex_Household_Acceptable.csv")
+
+# Data wrangling
+suitability_acceptable <- suitability_acceptable %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(household_living_in_house_of_an_acceptable_standard_n:household_living_in_house_not_of_an_acceptable_standard_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(yes_n = household_living_in_house_of_an_acceptable_standard_n,
+                no_n  = household_living_in_house_not_of_an_acceptable_standard_n) %>% 
+  #
+  dplyr::mutate(across(yes_n:no_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("yes"),
+                starts_with("no"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Housing - structural issues
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+suitability_structural <- f_read_natsihs_sex("Indicator_Vic_Sex_Household_Structural.csv")
+
+# Data wrangling
+suitability_structural <- suitability_structural %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(none_n:ten_n)),
+                lesstwo_n  = sum(across(none_n:one_n)),
+                moretwo_n  = sum(across(two_n:ten_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(yes_n = lesstwo_n,
+                no_n  = moretwo_n) %>% 
+  #
+  dplyr::mutate(across(yes_n:no_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100,
+                #
+                category = "Less than two structural issues") %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(category,
+                sex,
+                starts_with("yes_"),
+                starts_with("no_"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Housing - working bathroom
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+suitability_bathroom <- f_read_natsihs_sex("Indicator_Vic_Sex_Household_Bathroom.csv")
+
+# Data wrangling
+suitability_bathroom <- suitability_bathroom %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(has_working_facilities_for_washing_people_n:does_not_have_working_facilities_for_washing_people_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(yes_n = has_working_facilities_for_washing_people_n,
+                no_n  = does_not_have_working_facilities_for_washing_people_n) %>% 
+  #
+  dplyr::mutate(across(yes_n:no_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100,
+                #
+                category = "Adequate bathing facilities") %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(category,
+                sex,
+                starts_with("yes"),
+                starts_with("no"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Housing - working kitchen
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+suitability_kitchen <- f_read_natsihs_sex("Indicator_Vic_Sex_Household_Kitchen.csv")
+
+# Data wrangling
+suitability_kitchen <- suitability_kitchen %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(has_working_facilities_for_storing_and_preparing_food_n:does_not_have_working_facilities_for_storing_and_preparing_food_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(yes_n = has_working_facilities_for_storing_and_preparing_food_n,
+                no_n  = does_not_have_working_facilities_for_storing_and_preparing_food_n) %>% 
+  #
+  dplyr::mutate(across(yes_n:no_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100,
+                #
+                category = "Adequate cooking facilities") %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(category,
+                sex,
+                starts_with("yes"),
+                starts_with("no"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Housing - working laundry
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+suitability_laundry <- f_read_natsihs_sex("Indicator_Vic_Sex_Household_Laundry.csv")
+
+# Data wrangling
+suitability_laundry <- suitability_laundry %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(has_working_facilities_for_washing_clothes_or_bedding_n:does_not_have_working_facilities_for_washing_clothes_or_bedding_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(yes_n = has_working_facilities_for_washing_clothes_or_bedding_n,
+                no_n  = does_not_have_working_facilities_for_washing_clothes_or_bedding_n) %>% 
+  #
+  dplyr::mutate(across(yes_n:no_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100,
+                #
+                category = "Adequate laundry facilities") %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(category,
+                sex,
+                starts_with("yes"),
+                starts_with("no"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Housing - working sewerage
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+suitability_sewerage <- f_read_natsihs_sex("Indicator_Vic_Sex_Household_Sewerage.csv")
+
+# Data wrangling
+suitability_sewerage <- suitability_sewerage %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(has_working_sewerage_facilities_n:does_not_have_working_sewerage_facilities_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(yes_n = has_working_sewerage_facilities_n,
+                no_n  = does_not_have_working_sewerage_facilities_n) %>% 
+  #
+  dplyr::mutate(across(yes_n:no_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100,
+                #
+                category = "Sewerage connection") %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(category,
+                sex,
+                starts_with("yes"),
+                starts_with("no"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Housing - combine information about housing issues
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+suitability_combined <- suitability_structural %>% 
+  dplyr::bind_rows(suitability_kitchen) %>% 
+  dplyr::bind_rows(suitability_laundry) %>% 
+  dplyr::bind_rows(suitability_bathroom) %>% 
+  dplyr::bind_rows(suitability_sewerage)
+
+x_labels <- c("yes"      = "Yes",
+              "no"       = "No",
+              "answered" = "Total")
+
+suitability_number <- suitability_combined %>% 
+  dplyr::select(category,
+                sex,
+                ends_with(paste0("_", "n"))) %>%
+  #
+  tidyr::pivot_longer(cols      = !c(category,sex),
+                      names_to  = "comparison",
+                      values_to = "n") %>%
+  #
+  dplyr::mutate(comparison = stringr::str_remove(comparison, "\\_.*"),
+                comparison = dplyr::recode(comparison, !!!x_labels),
+                comparison = factor(comparison, levels = x_labels))
+
+suitability_percent <- suitability_combined %>% 
+  dplyr::select(category,
+                sex,
+                ends_with(paste0("_", "prop"))) %>%
+  #
+  tidyr::pivot_longer(cols      = !c(category,sex),
+                      names_to  = "comparison",
+                      values_to = "prop") %>%
+  #
+  dplyr::mutate(comparison = stringr::str_remove(comparison, "\\_.*"),
+                comparison = dplyr::recode(comparison, !!!x_labels),
+                comparison = factor(comparison, levels = x_labels))
+
+suitability_combined <- suitability_number %>%
+  dplyr::left_join(suitability_percent, by = c("category", "sex", "comparison"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 83%% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne reported that they were living in a dwelling of an acceptable standard. This equates to approximately 33,100 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to report living in a dwelling of an acceptable standard than males (85% vs. 81%).
+
+- The most commonly reported housing quality issues by Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne were structural issues (15% of survey respondents, approximately 5,800 people) and a lack of adequate facilities for storing and preparing food (7.1% of survey respondents, approximately 2,800 people).
+
+- Males were more likely to report each type of housing quality issue than females.
+:::
+
+```{r}
+# Table 6F-2
+f_caption_table("Whether were living in a dwelling of acceptable standard for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("yes"      = "Yes",
+              "no"       = "No",
+              "answered" = "Total")
+
+suitability_acceptable %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Dwelling of\nacceptable standard",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- A dwelling is of an acceptable standard if there are working facilities for washing people, for washing clothes or bedding, for storing and preparing food, and sewerage and if there are no more than two major structural problems.
+:::
+
+\newpage
+
+```{r}
+# Figure 6F-3
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander reporting housing quality issues, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- suitability_combined %>% 
+  dplyr::filter(comparison == "No" & sex != "Total") %>% 
+  #
+  ggplot() +
+  #
+  geom_col(aes(x = category, y = n, group = sex, fill = sex),
+           position = position_dodge(),
+           col      = colour_gray) +
+  #
+  scale_x_discrete(labels = c("Bathing",
+                              "Cooking",
+                              "Laundry",
+                              "Structural",
+                              "Sewerage"),
+                   guide  = guide_axis(angle = 90)) +
+  #
+  scale_y_continuous(limits = c(0, NA),
+                     breaks = scales::breaks_width(500),
+                     expand = expansion(add = c(0, 100)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  scale_fill_manual(values = c(colour_lightblue, colour_dodgerblue)) +
+  #
+  labs(x = NULL,
+       y = "Estimated number of people",
+       #
+       tag = "A") +
+  #
+  theme_classic() +
+  #
+  theme(legend.position    = "bottom",
+        legend.title       = element_blank(),
+        legend.location    = "plot",
+        legend.box.spacing = unit(10, "pt"),
+        legend.margin      = margin(c(0, 0, 0, 0)),
+        #
+        plot.margin = margin(5, 5, 0, 5),
+        plot.tag    = element_text(size = 12,
+                                   face = "bold"),
+        #
+        axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)))
+
+figure_percent <- suitability_combined %>% 
+  dplyr::filter(comparison == "No" & sex != "Total") %>% 
+  #
+  ggplot() +
+  #
+  geom_col(aes(x = category, y = prop, group = sex, fill = sex),
+           position = position_dodge(),
+           col      = colour_gray) +
+  #
+  scale_x_discrete(labels = c("Bathing",
+                              "Cooking",
+                              "Laundry",
+                              "Structural",
+                              "Sewerage"),
+                   guide  = guide_axis(angle = 90)) +
+  #
+  scale_y_continuous(limits = c(0, 100),
+                     breaks = scales::breaks_width(10),
+                     expand = expansion(add = c(0, 1)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  scale_fill_manual(values = c(colour_lightblue, colour_dodgerblue)) +
+  #
+  labs(x = NULL,
+       y = "Percentage of survey respondents",
+       #
+       tag = "B") +
+  #
+  theme_classic() +
+  #
+  theme(legend.position    = "bottom",
+        legend.title       = element_blank(),
+        legend.location    = "plot",
+        legend.box.spacing = unit(10, "pt"),
+        legend.margin      = margin(c(0, 0, 0, 0)),
+        #
+        plot.margin = margin(5, 5, 0, 5),
+        plot.tag    = element_text(size = 12,
+                                   face = "bold"),
+        #
+        axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- A dwelling is of an acceptable standard if there are working facilities for washing people, for washing clothes or bedding, for storing and preparing food, and sewerage and if there are no more than two major structural problems.
+:::
+
+\newpage
+
+```{r}
+# Table 6F-3
+f_caption_table("Housing quality issues for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+suitability_combined %>%
+  dplyr::mutate(prop = round(prop, digits = 1)) %>% 
+  #
+  tidyr::pivot_wider(names_from  = sex,
+                     values_from = c("n", "prop"),
+                     names_vary  = "slowest") %>%
+  #
+  dplyr::filter(comparison != "Total") %>%
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c(" ", " ",
+                                          "Estimate", "Percent",
+                                          "Estimate", "Percent",
+                                          "Estimate", "Percent")) %>%
+  #
+  flextable::add_header_row(values    = c(" ", "Male", "Female", "Total"),
+                            colwidths = c(2, 2, 2, 2)) %>%
+  #
+  flextable::merge_v(j = 1) %>%
+  #
+  flextable::valign(j = 1,
+                    valign = "top") %>% 
+  #
+  flextable::align(i = 1,
+                   align = "center",
+                   part  = "header") %>%
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(3:8),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>%
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::hline(i = c(2, 4, 6, 8),
+                   border = fp_border_default(width = 1)) %>%
+  #
+  flextable::width(j = 1,
+                   width = 1.5) %>%
+  #
+  flextable::width(j = 2:8,
+                   width = 0.75)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- A dwelling is of an acceptable standard if there are working facilities for washing people, for washing clothes or bedding, for storing and preparing food, and sewerage and if there are no more than two major structural problems.
+:::
+
+\newpage
+
+# Housing Affordability
+
+## Housing Tenure
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Housing tenure type
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in TableBuilder data
+tenure_lga <- f_read_census_lga("Aboriginal_Household_Tenure_LGA.csv",
+                                variable = "tenure") %>% 
+  #
+  dplyr::filter(!tenure %in% c("Not stated", "Not applicable")) %>%
+  #
+  dplyr::mutate(tenure = dplyr::case_when(
+    tenure == "Owned outright"        ~ "Owned (outright)",
+    tenure == "Owned with a mortgage" ~ "Owned (mortgage)",
+    #
+    tenure == "Rented" ~ "Rented",
+    #
+    tenure == "Other"                                  ~ "Other",
+    tenure == "Occupied rent free"                     ~ "Other",
+    tenure == "Occupied under a life tenure scheme"    ~ "Other",
+    tenure == "Purchased under a shared equity scheme" ~ "Other",
+    TRUE ~ NA_character_))
+
+# Data wrangling
+tenure_non_aboriginal <- tenure_lga %>% 
+  f_wrangle_census_lga(variable = tenure,
+                       level    = "household",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(outright_prop = non_aboriginal_n_owned_outright / non_aboriginal_total * 100,
+                mortgage_prop = non_aboriginal_n_owned_mortgage / non_aboriginal_total * 100,
+                rented_prop   = non_aboriginal_n_rented / non_aboriginal_total * 100,
+                other_prop    = non_aboriginal_n_other / non_aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                outright_n = non_aboriginal_n_owned_outright,
+                outright_prop,
+                mortgage_n = non_aboriginal_n_owned_mortgage,
+                mortgage_prop,
+                rented_n = non_aboriginal_n_rented,
+                rented_prop,
+                other_n = non_aboriginal_n_other,
+                other_prop,
+                non_aboriginal_total)
+
+tenure_lga <- tenure_lga %>% 
+  f_wrangle_census_lga(variable = tenure,
+                       level    = "household",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(outright_prop = aboriginal_n_owned_outright / aboriginal_total * 100,
+                mortgage_prop = aboriginal_n_owned_mortgage / aboriginal_total * 100,
+                rented_prop   = aboriginal_n_rented / aboriginal_total * 100,
+                other_prop    = aboriginal_n_other / aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                outright_n = aboriginal_n_owned_outright,
+                outright_prop,
+                mortgage_n = aboriginal_n_owned_mortgage,
+                mortgage_prop,
+                rented_n = aboriginal_n_rented,
+                rented_prop,
+                other_n = aboriginal_n_other,
+                other_prop,
+                aboriginal_total)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 52% (n = 3,347) of households in the NEPHU catchment with at least one member who identified as Aboriginal and/or Torres Strait Islander in the Census were renting, 30% (n = 1,910) owned their home with a mortgage, and 16% (n = 989) owned their home outright.
+
+- The percentage of rented households with at least one member who identified as Aboriginal and/or Torres Strait Islander was higher than for non-Indigenous households (52% vs. 27%), while the percentage of mortgaged or owned outright homes was lower than for non-Indigenous households (owned with mortgage: 30% vs. 38%, owned outright: 16% vs. 33%).
+
+- In Yarra (75%) and Darebin (76%) LGAs, higher proportions of households were rented, which may reflect the younger age profile of these LGAs.
+:::
+
+```{r}
+# Figure 6F-4
+f_caption_figure("Housing tenure type for Aboriginal and/or Torres Strait Islander households, NEPHU catchment, by LGA, 2021")
+
+tenure_lga %>%
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_grouped(x_variable = lga_name,
+                  #
+                  factor_levels  = c("other_n", "rented_n", "mortgage_n", "outright_n"),
+                  factor_colours = c(colour_yellow, colour_orange, colour_green, colour_lightblue),
+                  factor_labels  = c("Other", "Rented", "Owned (mortgage)", "Owned (outright)"),
+                  #
+                  y_breaks = 100,
+                  y_expand = 10)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- 'Other' includes dwellings purchased under a shared equity scheme, occupied under a life tenure scheme (e.g. retirement villages), or occupied rent-free.
+:::
+
+\newpage
+
+```{r}
+# Table 6F-4
+f_caption_table("Housing tenure type for Aboriginal and/or Torres Strait Islander households, NEPHU catchment, by LGA, 2021")
+
+tenure_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  dplyr::mutate(outright_prop = round(outright_prop, digits = 1),
+                mortgage_prop = round(mortgage_prop, digits = 1),
+                rented_prop   = round(rented_prop, digits = 1),
+                other_prop    = round(other_prop, digits = 2)) %>% 
+  #
+  f_table_grouped_lga(table_headers = c("n", "%", "n", "%", "n", "%", "n", "%"),
+                      group_headers = c("Owned\n(outright)", "Owned\n(mortgage)",
+                                        "Rented", "Other"),
+                      group_widths  = c(2, 2, 2, 2),
+                      last_column   = 10) %>% 
+  #
+  flextable::width(j = 2:10,
+                   width = 0.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- 'Other' includes dwellings purchased under a shared equity scheme, occupied under a life tenure scheme (e.g. retirement villages), or occupied rent-free.
+:::
+
+\newpage
+
+## Housing Stress
+
+```{r}
+# ------------------------------------------------------------------------------
+# Mortgage/rental stress
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in TableBuilder data
+mortgage_lga <- f_read_census_lga("Aboriginal_Household_Mortgage_LGA.csv",
+                                  variable = "stress") %>% 
+  #
+  dplyr::mutate(stress = dplyr::case_when(
+    stress == "Households where mortgage repayments are more than 30% of household income" ~ "Mortgage more than 30",
+    TRUE ~ "Mortgage less than 30"))
+
+rental_lga <- f_read_census_lga("Aboriginal_Household_Rent_LGA.csv",
+                                variable = "stress") %>% 
+  #
+  dplyr::filter(!stress %in% c("Not applicable")) %>%
+  #
+  dplyr::mutate(stress = dplyr::case_when(
+    stress == "Households where rent payments are more than 30% of household income" ~ "Rent more than 30",
+    TRUE ~ "Rent less than 30"))
+
+# Data wrangling
+stress_lga <- mortgage_lga %>% 
+  dplyr::bind_rows(rental_lga) %>% 
+  #
+  dplyr::mutate(stress = dplyr::case_when(
+    stress == "Mortgage more than 30" ~ "yes",
+    stress == "Rent more than 30"     ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = stress,
+                       level = "household",
+                       dichot = "yes")
+```
+
+
+```{r}
+#
+results <- list()
+data    <- stress_lga
+
+results$nephu_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_n)
+
+results$nephu_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_prop)
+
+results$non_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(non_aboriginal_prop)
+
+results$comp_non <- dplyr::case_when(
+  results$nephu_prop < results$non_prop * 0.9 ~ "lower than for",
+  results$nephu_prop > results$non_prop * 1.1 ~ "higher than for",
+  TRUE ~ "similar to")
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, `r round(results$nephu_prop, digits = 0)`% (n = `r formatC(results$nephu_n, big.mark = ",")`) of households in the NEPHU catchment with at least one member who identified as Aboriginal and/or Torres Strait Islander in the Census spent more than 30% of their annual household income on housing costs (mortgage or rent). This is `r results$comp_non` non-Indigenous households in the NEPHU catchment (`r round(results$non_prop, digits = 0)`%).
+
+- The number of Aboriginal and/or Torres Strait Islander households in different LGAs within the NEPHU catchment that spent more than 30% of their annual household income on housing costs ranged from 203 (Whittlesea LGA) to 28 (Nillumbik LGA).
+
+- The gap between the observed number of Aboriginal and/or Torres Strait Islander households and the number expected if the rate was the same as for non-Indigenous households was biggest for Darebin and Yarra Ranges LGAs.
+
+- The percentage of Aboriginal and/or Torres Strait Islander households in different LGAs within the NEPHU catchment that spent more than 30% of their annual household income on housing costs ranged from 14% (Whitehorse and Manningham LGAs) to 9.3% (Boroondara LGA).
+:::
+
+\newpage
+
+```{r}
+# Figure 6F-5
+f_caption_figure("(A) Number and (B) percentage of Aboriginal and/or Torres Strait Islander households that spent more than 30% of their annual household income on housing costs (mortgage or rent), NEPHU catchment, by LGA, 2021")
+
+figure_number <- stress_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 25,
+              y_expand   = 5,
+              y_title    = "Number of households",
+              plot_tag   = "A")
+
+figure_percent <- stress_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 100,
+              y_breaks   = 10,
+              y_expand   = 1,
+              y_title    = "Percentage of households",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- This indicator includes dwellings owned with a mortgage, purchased under a shared equity scheme, or rented.
+
+- Mortgage or rental payments greater than 30% of household income may not indicate a household is in financial distress.
+
+    - Households may choose to live in an area with higher costs due to proximity to work, schooling, or other lifestyle factors.
+    
+    - Higher income households may be able to spend more of their income on housing without this affecting their ability to pay for other costs of living.
+    
+    - Some households may choose to pay more than the minimum required payment in order to pay off a mortgage faster.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on housing affordability and housing stress.
+:::
+
+\newpage
+
+```{r}
+# Figure 6F-6
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander households that spent more than 30% of their annual household income on housing costs (mortgage or rent), NEPHU catchment, by LGA, 2021")
+
+stress_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_title  = "Number of households",
+                   y_breaks = 25,
+                   y_expand = 5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- This indicator includes dwellings owned with a mortgage, purchased under a shared equity scheme, or rented.
+
+- Mortgage or rental payments greater than 30% of household income may not indicate a household is in financial distress.
+
+    - Households may choose to live in an area with higher costs due to proximity to work, schooling, or other lifestyle factors.
+    
+    - Higher income households may be able to spend more of their income on housing without this affecting their ability to pay for other costs of living.
+    
+    - Some households may choose to pay more than the minimum required payment in order to pay off a mortgage faster.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on housing affordability and housing stress.
+:::
+
+\newpage
+
+```{r}
+# Table 6F-5
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander households that spent more than 30% of their annual household income on housing costs (mortgage or rent), NEPHU catchment, by LGA, 2021")
+
+stress_lga %>%
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- This indicator includes dwellings owned with a mortgage, purchased under a shared equity scheme, or rented.
+
+- Mortgage or rental payments greater than 30% of household income may not indicate a household is in financial distress.
+
+    - Households may choose to live in an area with higher costs due to proximity to work, schooling, or other lifestyle factors.
+    
+    - Higher income households may be able to spend more of their income on housing without this affecting their ability to pay for other costs of living.
+    
+    - Some households may choose to pay more than the minimum required payment in order to pay off a mortgage faster.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on housing affordability and housing stress.
+:::
+
+\newpage
+
+## Homelessness
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Homelessness, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+homeless_lga <- f_read_census_lga("Aboriginal_Household_Homeless_LGA.csv",
+                                  variable = "homeless") %>% 
+  #
+  dplyr::mutate(homeless = dplyr::case_when(
+    homeless == "Not applicable" ~ "no",
+    TRUE ~ "yes"))  
+
+# Data wrangling
+homeless_lga <- homeless_lga %>% 
+  f_wrangle_census_lga(variable = homeless,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Type of income support, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+homeless_agesex <- f_read_census_agesex("Aboriginal_Household_Homeless_AgeSex.csv",
+                                        variable = "homeless") %>% 
+  #
+  dplyr::mutate(homeless = dplyr::case_when(
+    homeless == "Not applicable" ~ "no",
+    TRUE ~ "yes")) 
+
+# Data wrangling
+homeless_agesex <- homeless_agesex %>% 
+  f_wrangle_census_agesex(variable = homeless,
+                          dichot   = "yes")
+```
+
+
+```{r}
+#
+results <- list()
+data    <- homeless_lga
+
+results$nephu_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_n)
+
+results$nephu_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_prop)
+
+results$non_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(non_aboriginal_prop)
+
+results$comp_non <- dplyr::case_when(
+  results$nephu_prop < results$non_prop * 0.9 ~ "lower than for",
+  results$nephu_prop > results$non_prop * 1.1 ~ "higher than for",
+  TRUE ~ "similar to")
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, `r round(results$nephu_prop, digits = 1)`% (n = `r formatC(results$nephu_n, big.mark = ",")`) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census were homeless or marginally housed on Census night. This is `r results$comp_non` non-Indigenous people living in the NEPHU catchment (`r round(results$non_prop, digits = 2)`%).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who were homeless or marginally housed on Census night ranged from 64 (Darebin LGA) to 0 (Nillumbik LGA).
+
+- The gap between the observed number of Aboriginal and/or Torres Strait Islander people and the number expected if the rate was the same as for non-Indigenous people was biggest for Darebin, Yarra Ranges, and Whittlesea LGAs.
+
+- The percentage of people who identified as Aboriginal and/or Torres Strait Islander in the Census living in different LGAs within the NEPHU catchment who were homeless or marginally housed on Census night ranged from 4.5% (Whitehorse LGA) to 0.0% (Nillumbik LGA).
+
+- There was a higher number of homeless or marginally housed females compared to males, particularly in the 40-49 year age group.
+
+- The gap between the observed number of Aboriginal and/or Torres Strait Islander people and the number expected if the rate was the same as for non-Indigenous people was biggest for people aged less than 20 years and 40-49 years for both males and females. 
+:::
+
+```{r}
+# Figure 6F-7
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who were homeless or marginally housed on Census night, NEPHU catchment, by LGA, 2021")
+
+figure_number <- homeless_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 10,
+              y_expand   = 7,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- homeless_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 10,
+              y_breaks   = 1,
+              y_expand   = 0.1,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- 'Homeless' is defined as people who were living in improvised dwellings, tents, or sleeping out; living in supported accommodation for the homeless; staying temporarily with other households; living in boarding houses; living in severely crowded dwellings; or living in other temporary lodgings on Census night.
+
+- 'Marginally housed' is defined as people who were living in other (not severely) crowded dwellings, living in other improvised dwellings, or marginally housed in caravan parks on Census night.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on housing affordability and housing stress.
+:::
+
+\newpage
+
+```{r}
+# Figure 6F-8
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who were homeless or marginally housed on Census night, NEPHU catchment, by LGA, 2021")
+
+homeless_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 10,
+                   y_expand = 7)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- 'Homeless' is defined as people who were living in improvised dwellings, tents, or sleeping out; living in supported accommodation for the homeless; staying temporarily with other households; living in boarding houses; living in severely crowded dwellings; or living in other temporary lodgings on Census night.
+
+- 'Marginally housed' is defined as people who were living in other (not severely) crowded dwellings, living in other improvised dwellings, or marginally housed in caravan parks on Census night.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on housing affordability and housing stress.
+:::
+
+\newpage
+
+```{r}
+# Table 6F-6
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who were homeless or marginally housed on Census night, NEPHU catchment, by LGA, 2021")
+
+homeless_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- 'Homeless' is defined as people who were living in improvised dwellings, tents, or sleeping out; living in supported accommodation for the homeless; staying temporarily with other households; living in boarding houses; living in severely crowded dwellings; or living in other temporary lodgings on Census night.
+
+- 'Marginally housed' is defined as people who were living in other (not severely) crowded dwellings, living in other improvised dwellings, or marginally housed in caravan parks on Census night.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on housing affordability and housing stress.
+:::
+
+\newpage
+
+```{r}
+# Figure 6F-9
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who were homeless or marginally housed on Census night, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- homeless_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 30,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- homeless_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 10,
+                 y_breaks   = 1,
+                 y_expand   = 0.1,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- homeless_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 30,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- homeless_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 10,
+                 y_breaks   = 1,
+                 y_expand   = 0.1,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- 'Homeless' is defined as people who were living in improvised dwellings, tents, or sleeping out; living in supported accommodation for the homeless; staying temporarily with other households; living in boarding houses; living in severely crowded dwellings; or living in other temporary lodgings on Census night.
+
+- 'Marginally housed' is defined as people who were living in other (not severely) crowded dwellings, living in other improvised dwellings, or marginally housed in caravan parks on Census night.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on housing affordability and housing stress.
+:::
+
+\newpage
+
+```{r}
+# Figure 6F-10
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who were homeless or marginally housed on Census night, NEPHU catchment, by age and sex, 2021") 
+
+homeless_agesex %>%  
+  dplyr::filter(age_group %in% age_group_lvl) %>%  
+  # 
+  dplyr::mutate(age_group = factor(age_group, levels = age_group_lvl)) %>% 
+  #
+  f_graph_expected(variable = age_group, 
+                   y_breaks = 5, 
+                   y_expand = 5) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- 'Homeless' is defined as people who were living in improvised dwellings, tents, or sleeping out; living in supported accommodation for the homeless; staying temporarily with other households; living in boarding houses; living in severely crowded dwellings; or living in other temporary lodgings on Census night.
+
+- 'Marginally housed' is defined as people who were living in other (not severely) crowded dwellings, living in other improvised dwellings, or marginally housed in caravan parks on Census night.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on housing affordability and housing stress.
+:::
+
+\newpage
+
+```{r}
+# Table 6F-7
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who were homeless or marginally housed on Census night, NEPHU catchment, by age and sex, 2021") 
+
+homeless_agesex %>% 
+  dplyr::filter(sex == "Female") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Females",
+                   total_row      = 12)
+  
+homeless_agesex %>% 
+  dplyr::filter(sex == "Male") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Males",
+                   total_row      = 12)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- 'Homeless' is defined as people who were living in improvised dwellings, tents, or sleeping out; living in supported accommodation for the homeless; staying temporarily with other households; living in boarding houses; living in severely crowded dwellings; or living in other temporary lodgings on Census night.
+
+- 'Marginally housed' is defined as people who were living in other (not severely) crowded dwellings, living in other improvised dwellings, or marginally housed in caravan parks on Census night.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on housing affordability and housing stress.
+:::
+

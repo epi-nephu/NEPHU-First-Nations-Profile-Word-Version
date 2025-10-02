@@ -1,0 +1,628 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Population: Population Size"
+output:
+  officedown::rdocx_document:
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "04A Population Size ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+# 
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_population.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_population.R"))
+```
+
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 4A-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 4A-"))
+  
+  return(caption)
+  
+}
+```
+
+### How many Aboriginal and/or Torres Strait Islander population live in the NEPHU catchment and where do they reside?
+
+# Population Size
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Total population by Aboriginality, with age, sex, and LGA breakdowns
+# Data from ABS Census
+# ------------------------------------------------------------------------------
+# Read in Census data
+aboriginal_lga <- f_read_census_population(table = "G07", 
+                                           level = "lga")
+
+# Join to LPHU reference table
+aboriginal_lga <- aboriginal_lga %>% 
+  dplyr::left_join(lphu_assign, by = "LGA_CODE_2021") %>% 
+  #
+  janitor::clean_names()
+
+# Aboriginal and non-Aboriginal peoples in each LPHU
+results <- list()
+
+for (i in lphu_names_short) {
+  
+  results[[i]] <- aboriginal_lga %>% 
+    dplyr::filter(lphu_short == i) %>% 
+    #
+    janitor::adorn_totals(name = i,
+                          fill = i) %>% 
+    #
+    dplyr::mutate(
+      lga_id = dplyr::case_when(
+        lga_code_2021 == i ~ i,
+        #
+        TRUE ~ as.character(lga_id)))
+  
+  }
+
+# Bind LPHU and Victorian data
+aboriginal_lga <- results[["NEPHU"]] %>% 
+  dplyr::bind_rows(results[["SEPHU"]]) %>%
+  dplyr::bind_rows(results[["WPHU"]]) %>% 
+  dplyr::bind_rows(results[["BSWPHU"]]) %>% 
+  dplyr::bind_rows(results[["LMPHU"]]) %>% 
+  dplyr::bind_rows(results[["GPHU"]]) %>% 
+  dplyr::bind_rows(results[["GWSMPHU"]]) %>% 
+  dplyr::bind_rows(results[["GVPHU"]]) %>% 
+  dplyr::bind_rows(results[["OMPHU"]]) %>% 
+  dplyr::bind_rows(aboriginal_lga %>% 
+                     janitor::adorn_totals(name = "VIC",
+                                           fill = "VIC") %>% 
+                     #
+                     dplyr::mutate(lga_id = dplyr::case_when(
+                       lga_code_2021 == "VIC" ~ "VIC",
+                       #
+                       TRUE ~ as.character(lga_id))) %>% 
+                     #
+                     dplyr::filter(lga_code_2021 == "VIC"))
+
+# Tidy up environment
+rm(i, results)
+
+# ------------------------------------------------------------------------------
+# Total population by Aboriginality, by LPHU
+# Data from ABS Census
+# ------------------------------------------------------------------------------
+population_lphu <- aboriginal_lga %>%
+  dplyr::filter(lga_name %in% lphu_names_short) %>% 
+  #
+  dplyr::mutate(
+    aboriginal_prop          = (tot_indigenous_p / tot_tot_p) * 100,
+    aboriginal_prop_per_lphu = tot_indigenous_p / sum(tot_indigenous_p) * 100,
+    #
+    non_aboriginal_n             = tot_non_indigenous_p + tot_indig_status_ns_p,
+    non_aboriginal_prop          = (non_aboriginal_n / tot_tot_p) * 100,
+    non_aboriginal_prop_per_lphu = non_aboriginal_n / sum(non_aboriginal_n) * 100) %>% 
+  #
+  dplyr::bind_rows(aboriginal_lga %>% 
+                     dplyr::filter(lga_name == "VIC") %>%
+                     #
+                     dplyr::mutate(
+                       aboriginal_prop          = (tot_indigenous_p / tot_tot_p) * 100,
+                       aboriginal_prop_per_lphu = tot_indigenous_p / sum(tot_indigenous_p) * 100,
+                       #
+                       non_aboriginal_n             = tot_non_indigenous_p + tot_indig_status_ns_p,
+                       non_aboriginal_prop          = (non_aboriginal_n / tot_tot_p) * 100,
+                       non_aboriginal_prop_per_lphu = non_aboriginal_n / sum(non_aboriginal_n) * 100)) %>% 
+  #
+  dplyr::select(lphu_name = lga_name,
+                aboriginal_n = tot_indigenous_p,
+                aboriginal_prop,
+                aboriginal_prop_per_lphu,
+                non_aboriginal_n = tot_non_indigenous_p,
+                non_aboriginal_prop,
+                non_aboriginal_prop_per_lphu)
+
+# ------------------------------------------------------------------------------
+# Total population by Aboriginality, by LGA
+# Data from ABS Census
+# ------------------------------------------------------------------------------
+population_lga <- aboriginal_lga %>%
+  dplyr::filter(lphu_short == "NEPHU" & lga_name != "NEPHU") %>% 
+  #
+  dplyr::mutate(
+    aboriginal_prop         = (tot_indigenous_p / tot_tot_p) * 100,
+    aboriginal_prop_per_lga = tot_indigenous_p / sum(tot_indigenous_p) * 100,
+    #
+    non_aboriginal_n            = tot_non_indigenous_p + tot_indig_status_ns_p,
+    non_aboriginal_prop         = (non_aboriginal_n / tot_tot_p) * 100,
+    non_aboriginal_prop_per_lga = non_aboriginal_n / sum(non_aboriginal_n) * 100) %>% 
+  #
+  dplyr::bind_rows(aboriginal_lga %>% 
+                     dplyr::filter(lga_name == "NEPHU") %>% 
+                     #
+                     dplyr::mutate(
+                       aboriginal_prop         = (tot_indigenous_p / tot_tot_p) * 100,
+                       aboriginal_prop_per_lga = tot_indigenous_p / sum(tot_indigenous_p) * 100,
+                       #
+                       non_aboriginal_n            = tot_non_indigenous_p + tot_indig_status_ns_p,
+                       non_aboriginal_prop         = (non_aboriginal_n / tot_tot_p) * 100,
+                       non_aboriginal_prop_per_lga = non_aboriginal_n / sum(non_aboriginal_n) * 100)) %>% 
+  #
+  dplyr::select(lga_name,
+                aboriginal_n = tot_indigenous_p,
+                aboriginal_prop,
+                aboriginal_prop_per_lga,
+                non_aboriginal_n = tot_non_indigenous_p,
+                non_aboriginal_prop,
+                non_aboriginal_prop_per_lga)
+
+# ------------------------------------------------------------------------------
+# Total population by Aboriginality, by SA2
+# Data from ABS Census
+# ------------------------------------------------------------------------------
+# Read in Census data
+aboriginal_sa2 <- f_read_census_population(table = "G07",
+                                           level = "sa2") %>% 
+  janitor::clean_names() %>% 
+  #
+  dplyr::mutate(sa2_code_2021 = as.character(sa2_code_2021))
+  
+aboriginal_sa2 <- aboriginal_sa2 %>% 
+  dplyr::bind_rows(aboriginal_sa2 %>% 
+                     dplyr::filter(sa2_code_2021 %in% nephu_sa2) %>% 
+                     #
+                     janitor::adorn_totals(name = "NEPHU") %>% 
+                     #
+                     dplyr::filter(sa2_code_2021 == "NEPHU"))
+
+# Data wrangling
+population_sa2 <- aboriginal_sa2 %>%
+  dplyr::filter(sa2_code_2021 %in% nephu_sa2) %>% 
+  #
+  dplyr::mutate(
+    aboriginal_prop         = (tot_indigenous_p / tot_tot_p) * 100,
+    aboriginal_prop_per_sa2 = tot_indigenous_p / sum(tot_indigenous_p) * 100,
+    #
+    non_aboriginal_n            = tot_non_indigenous_p + tot_indig_status_ns_p,
+    non_aboriginal_prop         = (non_aboriginal_n / tot_tot_p) * 100,
+    non_aboriginal_prop_per_sa2 = non_aboriginal_n / sum(non_aboriginal_n) * 100) %>% 
+  #
+  dplyr::bind_rows(aboriginal_sa2 %>% 
+                     dplyr::filter(sa2_code_2021 == "NEPHU") %>% 
+                     #
+                     dplyr::mutate(
+                       aboriginal_prop         = (tot_indigenous_p / tot_tot_p) * 100,
+                       aboriginal_prop_per_sa2 = tot_indigenous_p / sum(tot_indigenous_p) * 100,
+                       #
+                       non_aboriginal_n            = tot_non_indigenous_p + tot_indig_status_ns_p,
+                       non_aboriginal_prop         = (non_aboriginal_n / tot_tot_p) * 100,
+                       non_aboriginal_prop_per_sa2 = non_aboriginal_n / sum(non_aboriginal_n) * 100)) %>% 
+  #
+  dplyr::left_join(nephu_sa2.sf %>% 
+                     dplyr::select(sa2_code, sa2_name),
+                   by = c("sa2_code_2021" = "sa2_code")) %>% 
+  #
+  dplyr::select(sa2_code_2021,
+                sa2_name,
+                aboriginal_n = tot_indigenous_p,
+                aboriginal_prop,
+                aboriginal_prop_per_sa2,
+                non_aboriginal_n,
+                non_aboriginal_prop,
+                non_aboriginal_prop_per_sa2)
+
+# ------------------------------------------------------------------------------
+# Population density, by LGA
+# Data from ABS Census
+# ------------------------------------------------------------------------------
+density_lga <- dplyr::left_join(nephu_lga.sf, 
+                                aboriginal_lga %>% 
+                                  dplyr::select(lga_name, tot_indigenous_p),
+                                by = "lga_name") %>%
+  #
+  dplyr::mutate(pop_dens       = round(tot_indigenous_p / areasqkm, 1), 
+                pop_dens_label = paste0(lga_name, "\n(", pop_dens, ")"))
+
+# ------------------------------------------------------------------------------
+# Population density, by SA2
+# Data from ABS Census
+# ------------------------------------------------------------------------------
+density_sa2 <- dplyr::left_join(nephu_sa2.sf, 
+                                aboriginal_sa2 %>% 
+                                  dplyr::select(sa2_code_2021, tot_indigenous_p),
+                                by = c("sa2_code" = "sa2_code_2021")) %>%
+  #
+  dplyr::mutate(pop_dens = round(tot_indigenous_p / sa2_area, 1))
+```
+
+::: {custom-style="Dotpt"}
+- NEPHU has the largest number of residents who identified as Aboriginal and/or Torres Strait Islander in the 2021 Census for the state of Victoria (n = 12,065), representing 0.7% of the NEPHU catchment population.
+
+- 19% of Victorians who identified as Aboriginal and/or Torres Strait Islander reside in the NEPHU catchment.
+
+- The proportion of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander is lower than for Victoria overall (n = 65,639, 1.0% of the state population).
+
+- The majority of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander reside in the LGAs of Whittlesea (n = 2,270), Hume (n = 1,870), Yarra Ranges (n = 1,713), Darebin (n = 1,441), and Knox (n = 1,022).
+
+- Despite having a smaller number of residents who identified as Aboriginal and/or Torres Strait Islander, these residents are concentrated in Darebin (27 people per square km) and Yarra (26 people per square km) LGAs.
+
+- The NEPHU catchment SA2s with the largest number of residents identifying as Aboriginal and/or Torres Strait Islander are Healesville - Yarra Glen (n = 373), Lilydale - Coldstream (n = 260), and Reservoir - North East (n = 248).
+
+- Despite having a smaller number of residents who identified as Aboriginal and/or Torres Strait Islander, these residents are concentrated in the SA2s of Collingwood (55 people per square km), Reservoir - North East (52 people per square km), Reservoir - South East (44 people per square km), and Fitzroy (41 people per square km).
+:::
+
+\newpage
+
+```{r}
+# Figure 4A-1
+f_caption_figure("Number of people who identified as Aboriginal and/or Torres Strait Islander, Victoria, by LPHU, 2021")
+
+population_lphu %>% 
+  dplyr::filter(lphu_name != "VIC") %>% 
+  #
+  ggplot() +
+  #
+  geom_col(aes(x = forcats::fct_reorder(lphu_name, desc(aboriginal_n)), y = aboriginal_n),
+           col  = colour_black,
+           fill = colour_lightblue) +
+  #
+  geom_text(aes(x = forcats::fct_reorder(lphu_name, desc(aboriginal_n)), y = aboriginal_n, label = format(aboriginal_n, big.mark = ",")),
+            col     = colour_white,
+            size    = 3,
+            nudge_y = -350) +
+  #
+  scale_x_discrete(name   = "", 
+                   labels = c("NEPHU" = expression(bold(NEPHU)), 
+                              parse   = TRUE)) +
+  #
+  scale_y_continuous(limits = c(0, NA),
+                     breaks = scales::breaks_width(1500),
+                     expand = expansion(add = c(0, 250)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  labs(x = NULL,
+       y = "Number of people") +
+  #
+  theme_classic() +
+  #
+  theme(axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)),
+        plot.margin  = margin(5, 5, 0, 5))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+```{r}
+# Table 4A-1
+f_caption_table("Number and percentage of LPHU catchment population who identified as Aboriginal and/or Torres Strait Islander, Victoria, by LPHU, 2021")
+
+population_lphu %>%
+  dplyr::mutate(aboriginal_prop          = round(aboriginal_prop, digits = 1),
+                aboriginal_prop_per_lphu = round(aboriginal_prop_per_lphu, digits = 1)) %>% 
+  #
+  dplyr::select(lphu_name,
+                aboriginal_n,
+                aboriginal_prop,
+                aboriginal_prop_per_lphu) %>% 
+  #
+  f_table_population(total_row     = 10,
+                     table_headers = c("LPHU",
+                                       "Number of Aboriginal\nand/or Torres Strait\nIslander people",
+                                       "% of total LPHU\npopulation",
+                                       "% of Victorian Aboriginal\nand/or Torres Strait\nIslander population"))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Figure 4A-2
+f_caption_figure("Number of people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+population_lga %>% 
+  dplyr::filter(lga_name != "NEPHU") %>% 
+  #
+  ggplot() +
+  #
+  geom_col(aes(x = forcats::fct_reorder(lga_name, desc(aboriginal_n)), y = aboriginal_n),
+           col  = colour_black,
+           fill = colour_lightblue) +
+  #
+  geom_text(aes(x = forcats::fct_reorder(lga_name, desc(aboriginal_n)), y = aboriginal_n, label = format(aboriginal_n, big.mark = ",")),
+            col     = colour_white,
+            size    = 3,
+            nudge_y = -100) +
+  #
+  scale_x_discrete(guide  = guide_axis(angle = 90)) +
+  #
+  scale_y_continuous(limits = c(0, NA),
+                     breaks = scales::breaks_width(250),
+                     expand = expansion(add = c(0, 50)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  labs(x = NULL,
+       y = "Number of people") +
+  #
+  theme_classic() +
+  #
+  theme(axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)),
+        plot.margin  = margin(5, 5, 5, 5))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+```{r}
+# Table 4A-2
+f_caption_table("Number and percentage of people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+population_lga %>%
+  dplyr::mutate(aboriginal_prop         = round(aboriginal_prop, digits = 1),
+                aboriginal_prop_per_lga = round(aboriginal_prop_per_lga, digits = 1)) %>% 
+  #
+  dplyr::select(lga_name,
+                aboriginal_n,
+                aboriginal_prop,
+                aboriginal_prop_per_lga) %>% 
+  #
+  f_table_population(total_row     = 13,
+                     table_headers = c("LGA",
+                                       "Number of Aboriginal and/or Torres Strait Islander people",
+                                       "% of total LGA population",
+                                       "% of NEPHU Aboriginal and/or Torres Strait Islander people"))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Figure 4A-3
+f_caption_figure("Population density for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+ggplot(density_lga) +
+  geom_sf(aes(fill = pop_dens), 
+          col       = colour_black, 
+          linewidth = 0.25) +
+  #
+  scale_fill_gradientn(colours = c(colour_gradient_low, colour_gradient_mid, colour_gradient_high),
+                       name    = "Population density for people who identified as\nAboriginal and/or Torres Strait Islander") +
+  #
+  geom_sf(data = nephu_lga.sf, 
+          #
+          col       = colour_black,  
+          fill      = NA, 
+          linewidth = 1) +
+  #
+  geom_sf_text(data = density_lga %>% 
+                 filter(!(lga_name %in% nudge_lga)), 
+               aes(label = pop_dens_label), 
+               size = 2) + 
+  #
+  geom_sf_text(data = density_lga %>% 
+                 filter(lga_name == "Darebin"),
+               aes(label = pop_dens_label), 
+               size = 2,
+               nudge_x = -0.07, nudge_y = -0.01) +
+  #
+  geom_sf_text(data = density_lga %>% 
+                 filter(lga_name == "Yarra"),
+               aes(label = pop_dens_label), 
+               size = 2,
+               nudge_x = -0.04, nudge_y = -0.01) +
+  #
+  geom_sf_text(data = density_lga %>% 
+                 filter(lga_name == "Boroondara"),
+               aes(label = pop_dens_label),
+               size = 2,
+               nudge_x = -0.07, nudge_y = -0.04) +
+  #
+  geom_sf_text(data = density_lga %>% 
+                 filter(lga_name == "Maroondah"),
+               aes(label = pop_dens_label),
+               size = 2,
+               nudge_x = 0.04, nudge_y = 0.01) +
+  #
+  geom_sf_text(data = density_lga %>% 
+                 filter(lga_name == "Banyule"),
+               aes(label = pop_dens_label),
+               size = 2,
+               nudge_x = 0.02, nudge_y = 0.02) +
+  #
+  theme_void() +
+  #
+  theme(legend.position = "bottom",
+        legend.title    = element_text(size = 10))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+```{r}
+# Figure 4A-4
+f_caption_figure("Population density for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by SA2, 2021")
+
+ggplot(density_sa2) +
+  geom_sf(aes(fill = pop_dens), 
+          col       = colour_black, 
+          linewidth = 0.25) +
+  #
+  scale_fill_gradientn(colours = c(colour_gradient_low, colour_gradient_mid, colour_gradient_high),
+                       name    = "Population density for people who identified as\nAboriginal and/or Torres Strait Islander") +
+  #
+  geom_sf(data = nephu_lga.sf,
+          #
+          col       = colour_black,  
+          fill      = NA, 
+          linewidth = 1) +
+  #
+  theme_void() +
+  #
+  theme(legend.position = "bottom",
+        legend.title    = element_text(size = 10))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Table 4A-3
+f_caption_table("SA2s with at least 200 residents who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, 2021")
+
+population_sa2 %>%
+  dplyr::mutate(aboriginal_prop         = round(aboriginal_prop, digits = 1),
+                aboriginal_prop_per_sa2 = round(aboriginal_prop_per_sa2, digits = 1)) %>% 
+  #
+  dplyr::filter(aboriginal_n >= 200 & sa2_code_2021 != "NEPHU") %>% 
+  #
+  dplyr::select(sa2_name,
+                aboriginal_n,
+                aboriginal_prop,
+                aboriginal_prop_per_sa2) %>% 
+  #
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  #
+  f_table_population(total_row     = NULL,
+                     table_headers = c("SA2",
+                                       "Number of Aboriginal and/or Torres Strait Islander people",
+                                       "% of total SA2\npopulation",
+                                       "% of total NEPHU Aboriginal and/or Torres Strait Islander people")) %>% 
+  #
+  flextable::bold(bold = FALSE,
+                  part = "body") %>% 
+  #
+  flextable::width(j = 1,
+                   width = 2.5) %>%
+  #
+  flextable::width(j = 2:4,
+                   width = 1.5)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+

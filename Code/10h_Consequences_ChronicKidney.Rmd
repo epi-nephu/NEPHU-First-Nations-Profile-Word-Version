@@ -1,0 +1,807 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Consequences: Kidney Disease"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "10H Consequences Kidney Disease ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_phidu_iare_hospital.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_agesex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_expected.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_iare.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_expected.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_iare.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 10H-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 10H-"))
+  
+  return(caption)
+  
+}
+```
+
+### What chronic conditions affect Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+# Kidney Disease
+
+## Prevalence
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Kidney disease, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_kidney_lga <- f_read_census_lga("Aboriginal_Health_Kidney_LGA.csv",
+                                       variable = "kidney") %>% 
+  #
+  dplyr::filter(kidney != "Not stated")
+
+# Data wrangling
+health_kidney_lga <- health_kidney_lga %>%
+  #
+  dplyr::mutate(kidney = dplyr::case_when(
+    kidney == "Has kidney disease" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = kidney,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Kidney disease, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_kidney_agesex <- f_read_census_agesex("Aboriginal_Health_Kidney_AgeSex.csv",
+                                             variable = "kidney") %>% 
+  #
+  dplyr::filter(kidney != "Not stated")
+
+# Data wrangling
+health_kidney_agesex <- health_kidney_agesex %>% 
+  #
+  dplyr::mutate(kidney = dplyr::case_when(
+    kidney == "Has kidney disease" ~ "yes",
+    TRUE ~ "no")) %>%  
+  #
+  f_wrangle_census_agesex(variable = kidney,
+                          dichot   = "yes")
+```
+
+
+```{r}
+#
+results <- list()
+data    <- health_kidney_lga
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the ABS Census 2021.
+
+- Overall, 1.2% (n = 141) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census have been told by a doctor or nurse that they have kidney disease. This is higher than for non-Indigenous people living in the NEPHU catchment (0.9%).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who have been told by a doctor or nurse that they have kidney disease ranged from 26 (Darebin LGA) to 0 (Manningham and Yarra LGAs).
+
+- The gap between Aboriginal and/or Torres Strait Islander and non-Indigenous people was biggest for Darebin and Hume LGAs.
+
+- The percentage of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who have been told by a doctor or nurse that they have kidney disease ranged from 2.0% (Whitehorse LGA) to 0.0% (Manningham and Yarra LGAs).
+
+- The number of people who have been told by a doctor or nurse that they have kidney disease was highest for people aged 60-69 years for both males and females, and the percentage of people who have been told by a doctor or nurse that they have kidney disease increased with increasing age.
+:::
+
+\newpage
+
+```{r}
+# Figure 10H-1
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who have been told by a doctor or nurse that they have kidney disease, NEPHU catchment, by LGA, 2021")
+
+figure_number <- health_kidney_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 5,
+              y_expand   = 4.5,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- health_kidney_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 5,
+              y_breaks   = 0.5,
+              y_expand   = 0.125,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+```{r}
+# Figure 10H-2
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have kidney disease, NEPHU catchment, by LGA, 2021")
+
+health_kidney_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 5,
+                   y_expand = 4.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+\newpage
+
+```{r}
+# Table 10H-1
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have kidney disease, NEPHU catchment, by LGA, 2021")
+
+health_kidney_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+\newpage
+
+```{r}
+# Figure 10H-3
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who have been told by a doctor or nurse that they have kidney disease, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- health_kidney_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 16,
+                 y_breaks   = 2,
+                 y_expand   = 0.25,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- health_kidney_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 10,
+                 y_breaks   = 1,
+                 y_expand   = 0.125,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- health_kidney_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 16,
+                 y_breaks   = 2,
+                 y_expand   = 0.25,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- health_kidney_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 10,
+                 y_breaks   = 1,
+                 y_expand   = 0.125,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+:::
+
+\newpage
+
+```{r} 
+# Figure 10H-4
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have kidney disease, NEPHU catchment, by age and sex, 2021") 
+
+health_kidney_agesex %>%  
+  dplyr::filter(age_group %in% age_group_lvl) %>%  
+  # 
+  dplyr::mutate(age_group = factor(age_group, levels = age_group_lvl)) %>% 
+  #
+  f_graph_expected(variable = age_group, 
+                   y_breaks = 2, 
+                   y_expand = 0.5) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+:::
+
+\newpage
+
+```{r} 
+# Table 10H-2
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have kidney disease, NEPHU catchment, by age and sex, 2021") 
+
+health_kidney_agesex %>% 
+  dplyr::filter(sex == "Female") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Females",
+                   total_row      = 12)
+  
+health_kidney_agesex %>% 
+  dplyr::filter(sex == "Male") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Males",
+                   total_row      = 12)
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+:::
+
+\newpage
+
+## Hospital Admissions - Chronic Kidney Disease
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - chronic kidney disease
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_kidney <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_diag",
+                                              column_select = "admissions_for_chronic_kidney_disease_aboriginal_people")
+
+# Data wrangling
+hospital_kidney <- hospital_kidney %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl),
+                #
+                hospital_n_label = round(hospital_n, digits = 0),
+                #
+                hospital_n_label = dplyr::case_when(
+                  is.na(hospital_n) ~ "*",
+                  TRUE ~ format(hospital_n_label, big.mark = ",")),
+                #
+                hospital_rate_label = round(hospital_rate, digits = 0),
+                #
+                hospital_rate_label = dplyr::case_when(
+                  is.na(hospital_rate) ~ "*",
+                  TRUE ~ format(hospital_rate_label, big.mark = ",")),
+                #
+                hospital_ratio_label = round(hospital_ratio, digits = 1),
+                #
+                hospital_ratio_label = dplyr::case_when(
+                  is.na(hospital_ratio) ~ "*",
+                  TRUE ~ format(hospital_ratio_label, big.mark = ","))) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+results <- list()
+
+data <- hospital_kidney %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 293 hospital admissions for chronic kidney disease for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 55 (Northcote/Preston/Whittlesea IARE) to 5 (Whitehorse and Yarra Ranges IAREs).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 395 per 100,000 population (Maroondah IARE) to 58 per 100,000 population (Yarra Ranges IARE).
+
+- 6 of the 8 IAREs in the NEPHU catchment area with data available for reporting had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Maroondah, Northcote/Preston/Whittlesea, Melbourne East, Whitehorse, Moreland/Broadmeadows, and Melbourne/Port Phillip IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10H-5
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for chronic kidney disease for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_kidney %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_n,
+               text_pos   = 1,
+               y_label    = hospital_n_label,
+               y_max      = NA,
+               y_breaks   = 5,
+               y_expand   = 1,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_kidney %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_rate,
+               text_pos   = 10,
+               y_label    = hospital_rate_label,
+               y_max      = NA,
+               y_breaks   = 50,
+               y_expand   = 15,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'chronic kidney disease' are defined as those with a principal diagnosis code from the following list, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+
+    - Infectious and parasitic diseases (B52.0 *Plasmodium malariae* malaria with nephropathy)
+    
+    - Haemolytic anaemias (D59.3 Haemolytic-uraemic syndrome)
+
+    - Diabetes mellitus (E10.2 Type 1 diabetes mellitus with renal complications; E11.2 Type 2 diabetes mellitus with renal complications; E13.2 Other specified diabetes mellitus with renal complications; E14.2 Unspecified diabetes mellitus with renal complications)
+    
+    - Metabolic disorders (E85.1 Neuropathic heredofamilial amyloidosis)
+    
+    - Hypertensive diseases (I12 Hypertensive renal disease; I13 Hypertensive heart and renal disease; I15.0 Renovascular hypertension; I15.1 Hypertension secondary to other renal disorders)
+    
+    - Glomerular diseases (N00 Acute nephritic syndrome; N01 Rapidly progressive nephritic syndrome; N02 Recurrent and persistent haematuria; N03 Chronic nephritic syndrome; N04 Nephrotic syndrome; N05 Unspecified nephritic syndrome; N06 Isolated proteinuria with specified morphological lesion; N07 Hereditary nephropathy, not elsewhere classified; N08 Glomerular disorders in diseases classified elsewhere)
+    
+    - Renal tubulo-interstitial diseases (N11 Chronic tubulo-interstitial nephritis; N12 Tubulo-interstitial nephritis, not specified as acute or chronic; N14 Drug and heavy metal induced tubulo-interstitial and tubular conditions; N15 Other renal tubulo-interstitial diseases; N16 Renal tubulo-interstitial disorders in diseases classified elsewhere)
+    
+    - Renal failure (N18 Chronic kidney disease; N19 Unspecified kidney failure)
+    
+    - Other disorders of kidney and ureter (N25 Disorders resulting from impaired renal tubular function; N26 Unspecified contracted kidney; N27 Small kidney of unknown cause; N28 Other disorders of kidney and ureter, not elsewhere classified)
+    
+    - Other diseases of urinary system (N39.1 Persistent proteinuria, unspecified; N39.2 Orthostatic proteinuria, unspecified)
+    
+    - Congenital malformations of the urinary system (Q60 Renal agenesis and other reduction defects of kidney; Q61 Cystic kidney disease; Q62 Congenital obstructive defects of renal pelvis and congenital malformations of ureter; Q63 Other congenital malformations of kidney)
+    
+    - Complications of surgical and medical care (T82.4 Mechanical complication of vascular dialysis catheter; T86.1 Kidney transplant failure and rejection)
+    
+    - Care involving dialysis (Z49.0 Preparatory care for dialysis)
+
+- Day admissions for extracorporeal dialysis (Z49.1) or other dialysis (Z49.2) are excluded.
+:::
+
+```{r}
+# Table 10H-3
+f_caption_table("Hospital admissions for chronic kidney disease for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_kidney %>% 
+  dplyr::select(iare_name,
+                hospital_n_label,
+                hospital_rate_label,
+                hospital_ratio_label) %>%
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'chronic kidney disease' are defined as those with a principal diagnosis code from the following list, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+
+    - Infectious and parasitic diseases (B52.0 *Plasmodium malariae* malaria with nephropathy)
+    
+    - Haemolytic anaemias (D59.3 Haemolytic-uraemic syndrome)
+
+    - Diabetes mellitus (E10.2 Type 1 diabetes mellitus with renal complications; E11.2 Type 2 diabetes mellitus with renal complications; E13.2 Other specified diabetes mellitus with renal complications; E14.2 Unspecified diabetes mellitus with renal complications)
+    
+    - Metabolic disorders (E85.1 Neuropathic heredofamilial amyloidosis)
+    
+    - Hypertensive diseases (I12 Hypertensive renal disease; I13 Hypertensive heart and renal disease; I15.0 Renovascular hypertension; I15.1 Hypertension secondary to other renal disorders)
+    
+    - Glomerular diseases (N00 Acute nephritic syndrome; N01 Rapidly progressive nephritic syndrome; N02 Recurrent and persistent haematuria; N03 Chronic nephritic syndrome; N04 Nephrotic syndrome; N05 Unspecified nephritic syndrome; N06 Isolated proteinuria with specified morphological lesion; N07 Hereditary nephropathy, not elsewhere classified; N08 Glomerular disorders in diseases classified elsewhere)
+    
+    - Renal tubulo-interstitial diseases (N11 Chronic tubulo-interstitial nephritis; N12 Tubulo-interstitial nephritis, not specified as acute or chronic; N14 Drug and heavy metal induced tubulo-interstitial and tubular conditions; N15 Other renal tubulo-interstitial diseases; N16 Renal tubulo-interstitial disorders in diseases classified elsewhere)
+    
+    - Renal failure (N18 Chronic kidney disease; N19 Unspecified kidney failure)
+    
+    - Other disorders of kidney and ureter (N25 Disorders resulting from impaired renal tubular function; N26 Unspecified contracted kidney; N27 Small kidney of unknown cause; N28 Other disorders of kidney and ureter, not elsewhere classified)
+    
+    - Other diseases of urinary system (N39.1 Persistent proteinuria, unspecified; N39.2 Orthostatic proteinuria, unspecified)
+    
+    - Congenital malformations of the urinary system (Q60 Renal agenesis and other reduction defects of kidney; Q61 Cystic kidney disease; Q62 Congenital obstructive defects of renal pelvis and congenital malformations of ureter; Q63 Other congenital malformations of kidney)
+    
+    - Complications of surgical and medical care (T82.4 Mechanical complication of vascular dialysis catheter; T86.1 Kidney transplant failure and rejection)
+    
+    - Care involving dialysis (Z49.0 Preparatory care for dialysis)
+
+- Day admissions for extracorporeal dialysis (Z49.1) or other dialysis (Z49.2) are excluded.
+:::
+
+\newpage
+
+## Same Day Hospital Admissions - Dialysis
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - dialysis
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_dialysis <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_same_day_renal",
+                                                column_select = "same_day_admissions_for_dialysis_for_kidney_disease_aboriginal_people")
+
+# Data wrangling
+hospital_dialysis <- hospital_dialysis %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl),
+                #
+                hospital_n_label = round(hospital_n, digits = 0),
+                #
+                hospital_n_label = dplyr::case_when(
+                  is.na(hospital_n) ~ "*",
+                  TRUE ~ format(hospital_n_label, big.mark = ",")),
+                #
+                hospital_rate_label = round(hospital_rate, digits = 0),
+                #
+                hospital_rate_label = dplyr::case_when(
+                  is.na(hospital_rate) ~ "*",
+                  TRUE ~ format(hospital_rate_label, big.mark = ",")),
+                #
+                hospital_ratio_label = round(hospital_ratio, digits = 1),
+                #
+                hospital_ratio_label = dplyr::case_when(
+                  is.na(hospital_ratio) ~ "*",
+                  TRUE ~ format(hospital_ratio_label, big.mark = ","))) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+results <- list()
+
+data <- hospital_dialysis %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 9,786 same day hospital admissions for dialysis for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 1,652 (Northcote/Preston/Whittlesea IARE) to 91 (Yarra Ranges IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 13,438 per 100,000 population (Melbourne/Port Phillip IARE) to 990 per 100,000 population (Yarra Ranges IARE).
+
+- 3 of the 7 IAREs in the NEPHU catchment area with data available for reporting had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Northcote/Preston/Whittlesea, and Craigieburn/Sunbury IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10H-6
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of same day hospital admissions for dialysis for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_dialysis %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_n,
+               text_pos   = 25,
+               y_label    = hospital_n_label,
+               y_max      = NA,
+               y_breaks   = 250,
+               y_expand   = 125,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_dialysis %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_rate,
+               text_pos   = 250,
+               y_label    = hospital_rate_label,
+               y_max      = NA,
+               y_breaks   = 1500,
+               y_expand   = 250,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'dialysis' are defined as those with a principal diagnosis code of Z49.1 (haemodialysis) or Z49.2 (peritoneal dialysis), coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+
+    - Same day admissions are those with an admission and separation date on the same calendar day.
+    
+    - Overnight admissions for preparatory care for dialysis (Z49.0) are excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 10H-4
+f_caption_table("Same day hospital admissions for dialysis for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_dialysis %>% 
+  dplyr::select(iare_name,
+                hospital_n_label,
+                hospital_rate_label,
+                hospital_ratio_label) %>%
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'dialysis' are defined as those with a principal diagnosis code of Z49.1 (haemodialysis) or Z49.2 (peritoneal dialysis), coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+
+    - Same day admissions are those with an admission and separation date on the same calendar day.
+    
+    - Overnight admissions for preparatory care for dialysis (Z49.0) are excluded.
+:::
+

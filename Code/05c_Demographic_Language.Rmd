@@ -1,0 +1,714 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Demographics: Language"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "05C Demographics Language ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+# 
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+ 
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_agesex.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+officer::block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 5C-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 5C-"))
+  
+  return(caption)
+  
+}
+```
+
+# Aboriginal and/or Torres Strait Islander Languages
+
+### What proportion of Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment speak an Aboriginal and/or Torres Strait Islander language at home?
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 16: By 2031, there is a sustained increase in number and strength of Aboriginal and Torres Strait Islander languages being spoken.
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Aboriginal language spoken at home, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+language_any_lga <- f_read_census_lga("Aboriginal_Language_LGA.csv",
+                                      variable = "language_home") %>% 
+  #
+  dplyr::filter(language_home != "Not stated")
+
+# Data wrangling
+language_any_lga <- language_any_lga %>%
+  #
+  dplyr::mutate(language_home = dplyr::case_when(
+    language_home == "Aboriginal and/or Torres Strait Islander Language used at home" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = language_home,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Aboriginal language spoken at home, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+language_any_agesex <- f_read_census_agesex("Aboriginal_Language_AgeSex.csv",
+                                            variable = "language_home") %>% 
+  #
+  dplyr::filter(language_home != "Not stated")
+
+# Data wrangling
+language_any_agesex <- language_any_agesex %>% 
+  #
+  dplyr::mutate(language_home = dplyr::case_when(
+    language_home == "Aboriginal and/or Torres Strait Islander Language used at home" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_agesex(variable = language_home,
+                          dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Aboriginal and/or Torres Strait Islander languages
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+language_specific <- f_read_census_lga("Aboriginal_Language_Specific.csv",
+                                       variable = "language")
+
+# Data wrangling
+language_specific <- language_specific %>%
+  dplyr::filter(lga_name %in% c(nephu_lga)) %>%
+  #
+  dplyr::mutate(language = dplyr::case_when(
+    language == "Australian Indigenous Languages, nfd"       ~ "Australian Indigenous Languages",
+    language == "Other Australian Indigenous Languages, nec" ~ "Australian Indigenous Languages",
+    language == "Aboriginal English, so described"           ~ "Aboriginal English",
+    language == "Torres Strait Island Languages, nfd"        ~ "Torres Strait Island Languages",
+    #
+    TRUE ~ as.character(language))) %>% 
+  #
+  dplyr::mutate(aboriginal_n = aboriginal + torres_strait_islander + both_aboriginal_and_torres_strait_islander) %>%
+  #
+  dplyr::group_by(language) %>%
+  #
+  dplyr::summarise(aboriginal_n = sum(aboriginal_n)) %>%
+  #
+  dplyr::ungroup() %>% 
+  #
+  dplyr::filter(aboriginal_n > 0) %>% 
+  #
+  dplyr::arrange(desc(aboriginal_n), language) %>% 
+  #
+  janitor::adorn_totals() %>% 
+  #
+  dplyr::mutate(aboriginal_prop = aboriginal_n / 12065 * 100)
+```
+
+
+```{r}
+#
+results <- list()
+data    <- language_any_lga
+
+results$nephu_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_n)
+
+results$nephu_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_prop)
+
+results$non_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(non_aboriginal_prop)
+
+results$comp_non <- dplyr::case_when(
+  results$nephu_prop < results$non_prop * 0.9 ~ "lower than for",
+  results$nephu_prop > results$non_prop * 1.1 ~ "higher than for",
+  TRUE ~ "similar to")
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, `r round(results$nephu_prop, digits = 1)`% (n = `r formatC(results$nephu_n, big.mark = ",")`) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait in the Census reported speaking an Aboriginal and/or Torres Strait Islander language at home.
+
+- The number of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait in the Census who reported speaking an Aboriginal and/or Torres Strait Islander language at home ranged from 62 (Darebin LGA) to 0 (Nillumbik LGA).
+
+- The percentage of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait in the Census who reported speaking an Aboriginal and/or Torres Strait Islander language at home ranged from 7.6% (Yarra LGA) to 0.0% (Nillumbik LGA).
+
+- Younger people (aged < 40 years) were more likely to report speaking an Aboriginal and/or Torres Strait Islander language, with no speakers aged > 60 years reported in the NEPHU catchment. There was a higher number of female speakers than male speakers across most age groups (except 40-49 years).
+
+- Data on the specific language spoken was available for 181 people. The most common languages spoken at home by people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander were Australian Indigenous Languages (including those not further described or not elsewhere classified) (n = 73), Yorta Yorta (n = 27), Nyungar (n = 15), and Aboriginal English (n = 11).
+:::
+
+\newpage
+
+```{r}
+# Figure 5C-1
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who speak an Aboriginal and/or Torres Strait Islander language at home, NEPHU catchment, by LGA, 2021")
+
+figure_number <- language_any_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 10,
+              y_expand   = 9,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- language_any_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga)) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 10,
+              y_breaks   = 1,
+              y_expand   = 0.125,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+```{r}
+# Table 5C-1
+f_caption_table("Number and percentage of people who identified as Aboriginal and/or Torres Strait Islander and who speak an Aboriginal and/or Torres Strait Islander language at home, NEPHU catchment, by LGA, 2021")
+
+language_any_lga %>%
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>% 
+  #
+  dplyr::select(lga_name,
+                aboriginal_n,
+                aboriginal_prop) %>%
+  #
+  dplyr::mutate(aboriginal_prop = round(aboriginal_prop, digits = 1)) %>% 
+  #
+  flextable::flextable() %>% 
+  #
+  flextable::set_header_labels(values = c("LGA", 
+                                          "Number speaking language", 
+                                          "% speaking language")) %>% 
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:3),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>% 
+  #
+  flextable::bold(i = 13) %>% 
+  #
+  flextable::hline(i = 12,
+                   border = fp_border_default(width = 2)) %>% 
+  #
+  flextable::set_table_properties(layout = "autofit") %>% 
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+```{r}
+# Figure 5C-2
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who speak an Aboriginal and/or Torres Strait Islander language at home, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- language_any_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 35,
+                 y_breaks   = 5,
+                 y_expand   = 1,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- language_any_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 5,
+                 y_breaks   = 0.5,
+                 y_expand   = 0.125,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- language_any_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 35,
+                 y_breaks   = 5,
+                 y_expand   = 1,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- language_any_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 5,
+                 y_breaks   = 0.5,
+                 y_expand   = 0.125,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r}
+# Table 5C-2
+f_caption_table("Number and percentage of people who identified as Aboriginal and/or Torres Strait Islander and who speak an Aboriginal and/or Torres Strait Islander language at home, NEPHU catchment, by age and sex, 2021")
+
+language_any_agesex %>%
+  dplyr::select(age_group,
+                sex,
+                aboriginal_n,
+                aboriginal_total,
+                aboriginal_prop) %>%
+  #
+  dplyr::mutate(across(where(is.numeric), ~ replace(., is.nan(.), 0)),
+                #
+                aboriginal_prop = round(aboriginal_prop, digits = 1)) %>% 
+  #
+  tidyr::pivot_wider(names_from  = sex,
+                     values_from = c(aboriginal_n, aboriginal_total, aboriginal_prop)) %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::select(age_group,
+                aboriginal_n_female,
+                aboriginal_prop_female,
+                aboriginal_n_male,
+                aboriginal_prop_male) %>% 
+  #
+  flextable::flextable() %>% 
+  #
+  flextable::set_header_labels(values = c("Age group", 
+                                          "Female\n(n)", 
+                                          "Female\n(%)",
+                                          "Male\n(n)",
+                                          "Male\n(%)")) %>% 
+  #
+  flextable::valign(valign = "top",
+                    part   = "header") %>% 
+  #
+  flextable::align(i = 1,
+                   j = NULL,
+                   align = "center",
+                   part  = "header") %>% 
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "all") %>%
+  #
+  flextable::align(j = c(2:5),
+                   align = "right",
+                   part  = "all") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>% 
+  #
+  flextable::bold(i = 12) %>% 
+  #
+  flextable::hline(i = 11,
+                   border = fp_border_default(width = 2)) %>%
+  #
+  flextable::width(j = 1:5,
+                   width = 1) %>% 
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r fig.height = 5.87}
+# Figure 5C-3
+f_caption_figure("Aboriginal and/or Torres Strait Islander languages spoken by people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, 2021")
+
+language_specific %>% 
+  dplyr::filter(language != "Total") %>% 
+  #
+  ggplot() + 
+  #
+  geom_col(aes(x = forcats::fct_reorder(factor(language), aboriginal_n, .desc = TRUE), 
+               y = aboriginal_n),
+           #
+           fill = colour_lightblue) +
+  #
+  scale_x_discrete(guide = guide_axis(angle = 0)) +
+  #
+  scale_y_continuous(breaks = scales::breaks_width(5),
+                     expand = expansion(add = c(0, 4)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  labs(x = NULL, 
+       y = "Number of people") +
+  #
+  theme_classic() +
+  #
+  theme(axis.title = element_text(size = 10)) +
+  #
+  coord_flip()
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- When a person listed more than one language, responses were accepted in the order they appeared on the Census form. The first response was included in the data and any extra responses were rejected.
+
+- 'Australian Indigenous Languages' includes those not further described or not elsewhere classified.
+:::
+
+\newpage
+
+```{r}
+# Table 5C-3
+f_caption_table("Aboriginal and/or Torres Strait Islander languages spoken by people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, 2021")
+
+language_specific %>%
+  dplyr::mutate(aboriginal_prop = round(aboriginal_prop, digits = 2)) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Language", "Number of people", "% of people")) %>% 
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:3),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>% 
+  #
+  flextable::bold(i = 16) %>%
+  #
+  flextable::hline(i = 15,
+                   border = fp_border_default(width = 2)) %>% 
+  #
+  flextable::set_table_properties(layout = "autofit") %>% 
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- When a person listed more than one language, responses were accepted in the order they appeared on the Census form. The first response was included in the data and any extra responses were rejected.
+
+- 'Australian Indigenous Languages' includes those not further described or not elsewhere classified.
+:::
+
+\newpage
+
+# Other Languages
+
+### What proportion of Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment use other languages at home?
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Other languages
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+language_other <- f_read_census_lga("Aboriginal_Language_Other.csv",
+                                    variable = "language")
+
+# Data wrangling
+language_other <- language_other %>%
+  dplyr::filter(lga_name %in% c(nephu_lga)) %>%
+  #
+  dplyr::filter(!language %in% c("English", "Not stated", "Inadequately described", "Non-verbal, so described")) %>% 
+  #
+  dplyr::mutate(aboriginal_n = aboriginal + torres_strait_islander + both_aboriginal_and_torres_strait_islander) %>%
+  #
+  dplyr::group_by(language) %>%
+  #
+  dplyr::summarise(aboriginal_n = sum(aboriginal_n)) %>%
+  #
+  dplyr::ungroup() %>% 
+  #
+  dplyr::filter(aboriginal_n > 0) %>% 
+  #
+  dplyr::arrange(desc(aboriginal_n), language) %>% 
+  #
+  janitor::adorn_totals() %>% 
+  #
+  dplyr::mutate(aboriginal_prop = aboriginal_n / 12065 * 100)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 2.1% (n = 248) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait in the Census reported using a language other than English or an Aboriginal and/or Torres Strait Islander language at home.
+
+- The most common languages spoken at home by people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander were Italian (n = 38), Mandarin (n = 38), Arabic (n = 20), Greek (n = 19), and Spanish (n = 19).
+
+- 27 people reporting using Auslan at home.
+:::
+
+```{r fig.height = 5.87}
+# Figure 5C-4
+f_caption_figure("Other languages used by people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, 2021")
+
+language_other %>% 
+  dplyr::filter(language != "Total") %>% 
+  #
+  ggplot() + 
+  #
+  geom_col(aes(x = forcats::fct_reorder(factor(language), aboriginal_n, .desc = TRUE), 
+               y = aboriginal_n),
+           #
+           fill = colour_lightblue) +
+  #
+  scale_x_discrete(guide = guide_axis(angle = 0)) +
+  #
+  scale_y_continuous(breaks = scales::breaks_width(5),
+                     expand = expansion(add = c(0, 3)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  labs(x = NULL, 
+       y = "Number of people") +
+  #
+  theme_classic() +
+  #
+  theme(axis.title = element_text(size = 10)) +
+  #
+  coord_flip()
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- When a person listed more than one language, responses were accepted in the order they appeared on the Census form. The first response was included in the data and any extra responses were rejected.
+:::
+
+```{r}
+# Table 5C-4
+f_caption_table("Other languages used by people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, 2021")
+
+language_other %>%
+  dplyr::mutate(aboriginal_prop = round(aboriginal_prop, digits = 2)) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Language", "Number of people", "% of people")) %>% 
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:3),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>% 
+  #
+  flextable::bold(i = 22) %>%
+  #
+  flextable::hline(i = 21,
+                   border = fp_border_default(width = 2)) %>% 
+  #
+  flextable::set_table_properties(layout = "autofit") %>% 
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- When a person listed more than one language, responses were accepted in the order they appeared on the Census form. The first response was included in the data and any extra responses were rejected.
+:::

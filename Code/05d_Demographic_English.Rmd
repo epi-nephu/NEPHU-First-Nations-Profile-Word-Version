@@ -1,0 +1,370 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Demographics: English Proficiency"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "05D Demographics English ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+# 
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+  
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_expected.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_agesex.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_expected.R"))
+```
+
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 5D-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 5D-"))
+  
+  return(caption)
+  
+}
+```
+
+### What is the average level of English proficiency for Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# English proficiency, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+english_lga <- f_read_census_lga("Aboriginal_English_LGA.csv",
+                                 variable = "english_proficiency") %>% 
+  #
+  dplyr::filter(!stringr::str_detect(english_proficiency, "Not stated"))
+
+# Data wrangling
+english_lga <- english_lga %>%
+  #
+  dplyr::mutate(english_proficiency = dplyr::case_when(
+    english_proficiency == "Uses other language and speaks English: Not well"   ~ "no",
+    english_proficiency == "Uses other language and speaks English: Not at all" ~ "no",
+    TRUE ~ "yes")) %>% 
+  #
+  f_wrangle_census_lga(variable = english_proficiency,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# English proficiency, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+english_agesex <- f_read_census_agesex("Aboriginal_English_AgeSex.csv",
+                                       variable = "english_proficiency") %>% 
+  #
+  dplyr::filter(!stringr::str_detect(english_proficiency, "Not stated"))
+
+# Data wrangling
+english_agesex <- english_agesex %>% 
+  #
+  dplyr::mutate(english_proficiency = dplyr::case_when(
+    english_proficiency == "Uses other language and speaks English: Not well"   ~ "no",
+    english_proficiency == "Uses other language and speaks English: Not at all" ~ "no",
+    #
+    TRUE ~ "yes")) %>% 
+  #
+  f_wrangle_census_agesex(variable = english_proficiency,
+                          dichot   = "yes")
+```
+
+::: {custom-style="Dotpt"}
+- Almost all people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander had a high level of English proficiency.
+
+- This pattern is seen across all LGAs, both males and females, and across all age groups.
+:::
+
+```{r}
+# Figure 5D-1
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander with a high level of English proficiency, NEPHU catchment, by LGA, 2021")
+
+figure_number <- english_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 250,
+              y_expand   = 50,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- english_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga)) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 100,
+              y_breaks   = 10,
+              y_expand   = 1,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Figure 5D-2
+f_caption_figure("Observed vs. expected number of people who identified as Aboriginal and/or Torres Strait Islander with a high level of English proficiency, NEPHU catchment, by LGA, 2021")
+
+english_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 250,
+                   y_expand = 75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Table 5D-1
+f_caption_table("Observed vs. expected number of people who identified as Aboriginal and/or Torres Strait Islander with a high level of English proficiency, NEPHU catchment, by LGA, 2021")
+
+english_lga %>%
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>% 
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r} 
+# Figure 5D-3
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander with a high level of English proficiency, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- english_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 1200,
+                 y_breaks   = 150,
+                 y_expand   = 10,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- english_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 100,
+                 y_breaks   = 10,
+                 y_expand   = 1,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- english_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 1200,
+                 y_breaks   = 150,
+                 y_expand   = 10,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- english_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 100,
+                 y_breaks   = 10,
+                 y_expand   = 1,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+``` 
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r} 
+# Figure 5D-4
+f_caption_figure("Observed vs. expected number of people who identified as Aboriginal and/or Torres Strait Islander with a high level of English proficiency, NEPHU catchment, by age and sex, 2021") 
+
+english_agesex %>%  
+  dplyr::filter(age_group %in% age_group_lvl) %>%  
+  # 
+  dplyr::mutate(age_group = factor(age_group, levels = age_group_lvl)) %>% 
+  #
+  f_graph_expected(variable = age_group, 
+                   y_breaks = 100, 
+                   y_expand = 50) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+``` 
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r} 
+# Table 5D-2 
+f_caption_table("Observed vs. expected number of people who identified as Aboriginal and/or Torres Strait Islander with a high level of English proficiency, NEPHU catchment, by age and sex, 2021") 
+
+english_agesex %>% 
+  dplyr::filter(sex == "Female") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Females",
+                   total_row      = 12)
+  
+english_agesex %>% 
+  dplyr::filter(sex == "Male") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Males",
+                   total_row      = 12)
+``` 
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+

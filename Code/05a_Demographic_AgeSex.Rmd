@@ -1,0 +1,820 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Demographics: Age and Sex Distribution"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "05A Demographics Age and Sex ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+# 
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_pyramid.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_expected.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_expected.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+officer::block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 5A-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 5A-"))
+  
+  return(caption)
+  
+}
+```
+
+### What is the age and sex structure of Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+# Age and Sex Distribution
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Number of people in each sex/age group, by Aboriginality
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+census_agesex <- read.csv(file.path(root_folder, tablebuilder_subfolder, "Aboriginal_Age_Sex_LGA.csv"), 
+                          skip        = 9, 
+                          strip.white = TRUE)
+
+census_agesex <- census_agesex[2:(grep("Data source", census_agesex[, 1]) -1), ] %>%
+  dplyr::rename(lga_name  = colnames(census_agesex)[1],
+                age_group = colnames(census_agesex)[2],
+                sex       = colnames(census_agesex)[3]) %>%
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::mutate(lga_name = if_else(lga_name == "Total", "VIC", lga_name),
+                lga_name = if_else(lga_name == "", NA_character_, lga_name),
+                #
+                age_group = if_else(age_group == "", NA_character_, age_group)) %>% 
+  #
+  tidyr::fill(lga_name, age_group) %>% 
+  #
+  dplyr::mutate(lga_name = dplyr::case_when(
+    lga_name == "Bayside (Vic.)"  ~ "Bayside",
+    lga_name == "Kingston (Vic.)" ~ "Kingston",
+    lga_name == "Latrobe (Vic.)"  ~ "Latrobe",
+    #
+    TRUE ~ as.character(lga_name)))
+
+# Join to LPHU reference table
+census_agesex <- census_agesex %>% 
+  dplyr::left_join(lphu_assign %>% 
+                     dplyr::select(lga_name,
+                                   lphu_long,
+                                   lphu_short), 
+                   by = "lga_name") %>% 
+  #
+  dplyr::mutate(
+    lphu_long = dplyr::case_when(
+      lga_name == "VIC" ~ "Victoria",
+      TRUE ~ as.character(lphu_long)),
+    #
+    lphu_short = dplyr::case_when(
+      lga_name == "VIC" ~ "VIC",
+      TRUE ~ as.character(lphu_short)))
+
+# Data wrangling
+aboriginal_agesex <- census_agesex %>% 
+  dplyr::mutate(
+    age_group = dplyr::case_when(
+      age_group %in% c("0-4 years", "5-9 years", "10-14 years")     ~ "0-14 years",
+      age_group %in% c("15-19 years", "20-24 years")                ~ "15-24 years",
+      age_group %in% c("25-29 years", "30-34 years")                ~ "25-34 years",
+      age_group %in% c("35-39 years", "40-44 years", "45-49 years") ~ "35-49 years",
+      #
+      age_group %in% c("50-54 years", "55-59 years", "60-64 years", "65-69 years", 
+                       "70-74 years", "75-79 years", "80-84 years", "85-89 years", 
+                       "90-94 years", "95-99 years", "100 years and over") ~ "50+ years", 
+      #
+      TRUE ~ NA_character_)) %>% 
+  # 
+  dplyr::group_by(lphu_long,
+                  lphu_short,
+                  lga_name,
+                  age_group,
+                  sex) %>% 
+  #
+  dplyr::summarise(aboriginal             = sum(aboriginal),
+                   torres_strait_islander = sum(torres_strait_islander),
+                   both_aboriginal        = sum(both_aboriginal_and_torres_strait_islander),
+                   non_indigenous         = sum(non_indigenous),
+                   not_stated             = sum(not_stated)) %>%
+  #
+  dplyr::ungroup() %>% 
+  #
+  dplyr::mutate(aboriginal_n     = aboriginal + torres_strait_islander + both_aboriginal,
+                non_aboriginal_n = non_indigenous + not_stated,
+                total_n          = aboriginal_n + non_aboriginal_n) %>%
+  #
+  dplyr::select(lphu_long,
+                lphu_short,
+                lga_name,
+                age_group,
+                sex,
+                aboriginal_n,
+                non_aboriginal_n,
+                total_n)
+
+# ------------------------------------------------------------------------------
+# Proportion of people in each sex/age group, by Aboriginality and LPHU
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+results <- list()
+
+for (i in c(lphu_names_short, "VIC")) {
+  
+  results[[i]] <- aboriginal_agesex %>% 
+    dplyr::filter(lphu_short == i) %>% 
+    #
+    dplyr::group_by(lphu_short,
+                    age_group,
+                    sex) %>% 
+    #
+    dplyr::summarise(aboriginal_n     = sum(aboriginal_n),
+                     non_aboriginal_n = sum(non_aboriginal_n)) %>% 
+    #
+    dplyr::ungroup() %>% 
+    #
+    dplyr::mutate(aboriginal_total     = sum(aboriginal_n),
+                  aboriginal_prop      = round(aboriginal_n / aboriginal_total * 100, digits = 0),
+                  non_aboriginal_total = sum(non_aboriginal_n),
+                  non_aboriginal_prop  = round(non_aboriginal_n / non_aboriginal_total * 100, digits = 0))
+  
+}
+
+# Bind LPHU and Victorian data
+agesex_lphu <- results[["NEPHU"]] %>% 
+  dplyr::bind_rows(results[["SEPHU"]]) %>% 
+  dplyr::bind_rows(results[["WPHU"]]) %>% 
+  dplyr::bind_rows(results[["BSWPHU"]]) %>% 
+  dplyr::bind_rows(results[["LMPHU"]]) %>% 
+  dplyr::bind_rows(results[["GPHU"]]) %>% 
+  dplyr::bind_rows(results[["GWSMPHU"]]) %>% 
+  dplyr::bind_rows(results[["GVPHU"]]) %>% 
+  dplyr::bind_rows(results[["OMPHU"]]) %>% 
+  dplyr::bind_rows(results[["VIC"]]) %>% 
+  #
+  dplyr::mutate(
+    lphu_short = factor(lphu_short,
+                        levels = c(lphu_names_short, "VIC")),
+    #
+    age_group = factor(age_group,
+                       levels = c("0-14 years", "15-24 years", "25-34 years", "35-49 years", "50+ years")),
+    #
+    aboriginal_prop = dplyr::case_when(
+      sex == "Female" ~ -aboriginal_prop,
+      sex == "Male"   ~ aboriginal_prop,
+      #
+      TRUE ~ NA_real_),
+    #
+    non_aboriginal_prop = dplyr::case_when(
+      sex == "Female" ~ -non_aboriginal_prop,
+      sex == "Male"   ~ non_aboriginal_prop,
+      #
+      TRUE ~ NA_real_))
+
+# Tidy up environment
+rm(i, results)
+
+# ------------------------------------------------------------------------------
+# Proportion of people in each sex/age group, by Aboriginality and LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+results <- list()
+
+for (i in nephu_lga) {
+  
+  results[[i]] <- aboriginal_agesex %>% 
+    dplyr::filter(lga_name == i) %>% 
+    #
+    dplyr::group_by(lga_name,
+                    age_group,
+                    sex) %>% 
+    #
+    dplyr::summarise(aboriginal_n     = sum(aboriginal_n),
+                     non_aboriginal_n = sum(non_aboriginal_n)) %>% 
+    #
+    dplyr::ungroup() %>% 
+    #
+    dplyr::mutate(aboriginal_total     = sum(aboriginal_n),
+                  aboriginal_prop      = round(aboriginal_n / aboriginal_total * 100, digits = 0),
+                  non_aboriginal_total = sum(non_aboriginal_n),
+                  non_aboriginal_prop  = round(non_aboriginal_n / non_aboriginal_total * 100, digits = 0))
+  
+}
+
+# Bind LGA data
+agesex_lga <- results[["Banyule"]] %>% 
+  dplyr::bind_rows(results[["Boroondara"]]) %>% 
+  dplyr::bind_rows(results[["Darebin"]]) %>% 
+  dplyr::bind_rows(results[["Hume"]]) %>% 
+  dplyr::bind_rows(results[["Knox"]]) %>% 
+  dplyr::bind_rows(results[["Manningham"]]) %>% 
+  dplyr::bind_rows(results[["Maroondah"]]) %>% 
+  dplyr::bind_rows(results[["Nillumbik"]]) %>% 
+  dplyr::bind_rows(results[["Whitehorse"]]) %>% 
+  dplyr::bind_rows(results[["Whittlesea"]]) %>% 
+  dplyr::bind_rows(results[["Yarra"]]) %>% 
+  dplyr::bind_rows(results[["Yarra Ranges"]]) %>% 
+  #
+  dplyr::mutate(
+    lga_name = factor(lga_name,
+                      levels = nephu_lga),
+    #
+    age_group = factor(age_group,
+                       levels = c("0-14 years", "15-24 years", "25-34 years", "35-49 years", "50+ years")),
+    #
+    aboriginal_prop = dplyr::case_when(
+      sex == "Female" ~ -aboriginal_prop,
+      sex == "Male"   ~ aboriginal_prop,
+      #
+      TRUE ~ NA_real_),
+    #
+    non_aboriginal_prop = dplyr::case_when(
+      sex == "Female" ~ -non_aboriginal_prop,
+      sex == "Male"   ~ non_aboriginal_prop,
+      #
+      TRUE ~ NA_real_))
+
+# Tidy up environment
+rm(i, results)
+
+# ------------------------------------------------------------------------------
+# Age group labels for pyramid plots
+# ------------------------------------------------------------------------------
+pyramid_lvls <- tibble(age_group = c("0-14 years",
+                                     "15-24 years",
+                                     "25-34 years",
+                                     "35-49 years",
+                                     "50+ years")) %>%
+  #
+  dplyr::mutate(age_group = forcats::fct_inorder(age_group)) %>% 
+  #
+  ggplot() +
+  #
+  geom_text(aes(x = 1, y = age_group, label = age_group),
+            size = 3.5) +
+  #
+  theme_void()
+```
+
+::: {custom-style="Dotpt"}
+- 50% of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander are male.
+
+- People living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander tended to be younger than those who did not identify as Aboriginal and/or Torres Strait Islander.
+
+- The age and sex distribution for people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander is similar to the distribution for the other LPHUs and for Victoria overall.
+
+- The age and sex distribution for people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander varies across LGAs, but in each LGA residents who identified as Aboriginal and/or Torres Strait Islander tended to be younger than those who did not identify as Aboriginal and/or Torres Strait Islander.
+:::
+
+```{r}
+# Figure 5A-1
+f_caption_figure("Age and sex distribution of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander compared to people living in Victoria who identified as Aboriginal and/or Torres Strait Islander, 2021")
+
+pyramid_female <- agesex_lphu %>% 
+  dplyr::filter(lphu_short %in% c("NEPHU", "VIC")) %>% 
+  #
+  f_graph_pyramid_female(prop_variable = aboriginal_prop,
+                         fill_variable = lphu_short) +
+  #
+  scale_fill_manual(labels = c("NEPHU", "VIC"),
+                    values = c(colour_darkblue, colour_dodgerblue))
+
+pyramid_male <- agesex_lphu %>% 
+  dplyr::filter(lphu_short %in% c("NEPHU", "VIC")) %>% 
+  #
+  f_graph_pyramid_male(prop_variable = aboriginal_prop,
+                       fill_variable = lphu_short) +
+  #
+  scale_fill_manual(labels = c("NEPHU", "VIC"),
+                    values = c(colour_darkblue, colour_dodgerblue))
+
+pyramid_female + pyramid_lvls + pyramid_male +
+  #
+  plot_layout(guides = "collect",
+              widths = c(2, 0.5, 2)) & 
+  #
+  theme(legend.position = "bottom")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r}
+# Figure 5A-2
+f_caption_figure("Age and sex distribution of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander compared to people living in the NEPHU catchment who did not identify as Aboriginal and/or Torres Strait Islander, 2021")
+
+pyramid_female <- agesex_lphu %>% 
+  dplyr::filter(lphu_short == "NEPHU") %>%
+  #
+  dplyr::select(sex,
+                age_group,
+                aboriginal_prop,
+                non_aboriginal_prop) %>%
+  #
+  tidyr::pivot_longer(cols      = !c(sex, age_group),
+                      names_to  = "aboriginal_status",
+                      values_to = "prop") %>% 
+  #
+  f_graph_pyramid_female(prop_variable = prop,
+                         fill_variable = aboriginal_status)
+  
+pyramid_male <- agesex_lphu %>% 
+  dplyr::filter(lphu_short == "NEPHU") %>%
+  #
+  dplyr::select(sex,
+                age_group,
+                aboriginal_prop,
+                non_aboriginal_prop) %>%
+  #
+  tidyr::pivot_longer(cols      = !c(sex, age_group),
+                      names_to  = "aboriginal_status",
+                      values_to = "prop") %>% 
+  #
+  f_graph_pyramid_male(prop_variable = prop,
+                       fill_variable = aboriginal_status)
+
+pyramid_female + pyramid_lvls + pyramid_male +
+  #
+  plot_layout(guides = "collect",
+              widths = c(2, 0.5, 2)) & 
+  #
+  theme(legend.position = "bottom")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r}
+# Figure 5A-3
+f_caption_figure("Age and sex distribution of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander compared to people living in other LPHU catchments who identified as Aboriginal and/or Torres Strait Islander, by LPHU, 2021")
+
+for (i in lphu_names_short) {
+  
+  pyramid_female[[i]] <- agesex_lphu %>% 
+    dplyr::filter(lphu_short == i) %>%
+    #
+    dplyr::select(lphu_short,
+                  sex,
+                  age_group,
+                  aboriginal_prop,
+                  non_aboriginal_prop) %>%
+    #
+    tidyr::pivot_longer(cols      = !c(lphu_short, sex, age_group),
+                        names_to  = "aboriginal_status",
+                        values_to = "prop") %>% 
+    #
+    f_graph_pyramid_female(prop_variable = prop,
+                           fill_variable = aboriginal_status)
+  
+}
+
+for (i in lphu_names_short) {
+  
+  pyramid_male[[i]] <- agesex_lphu %>% 
+    dplyr::filter(lphu_short == i) %>%
+    #
+    dplyr::select(lphu_short,
+                  sex,
+                  age_group,
+                  aboriginal_prop,
+                  non_aboriginal_prop) %>%
+    #
+    tidyr::pivot_longer(cols      = !c(lphu_short, sex, age_group),
+                        names_to  = "aboriginal_status",
+                        values_to = "prop") %>% 
+    #
+    f_graph_pyramid_male(prop_variable = prop,
+                         fill_variable = aboriginal_status)
+  
+}
+
+pyramid <- list()
+
+for (i in seq_along(lphu_names_short)) {
+  
+  chart_title <- lphu_names_short[[i]]
+  
+  pyramid[[chart_title]] <- pyramid_female[[chart_title]] + labs(title = chart_title) + pyramid_lvls + pyramid_male[[chart_title]] +
+  #
+  plot_layout(guides = "collect",
+              widths = c(2, 0.5, 2)) &
+  #
+  theme(legend.position = "none",
+        #
+        plot.title.position = "plot",
+        #
+        plot.title = element_text(size = 11,
+                                  face = "bold"))
+  
+}
+```
+
+
+```{r, fig.height = 3}
+#
+pyramid[["SEPHU"]]
+
+pyramid[["WPHU"]]
+
+pyramid[["BSWPHU"]]
+
+pyramid[["LMPHU"]]
+
+pyramid[["GPHU"]]
+
+pyramid[["GWSMPHU"]]
+
+pyramid[["GVPHU"]]
+```
+
+
+```{r, fig.height = 3.25}
+#
+pyramid_female[["OMPHU"]] + labs(title = "OMPHU") + pyramid_lvls + pyramid_male[["OMPHU"]] +
+  #
+  plot_layout(guides = "collect",
+              widths = c(2, 0.5, 2)) &
+  #
+  theme(legend.position = "bottom",
+        #
+        plot.title.position = "plot",
+        #
+        plot.title = element_text(size = 11,
+                                  face = "bold"))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r}
+# Figure 5A-4
+f_caption_figure("Age and sex distribution of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander compared to people living in the NEPHU catchment who did not identify as Aboriginal and/or Torres Strait Islander, by LGA, 2021")
+
+for (i in nephu_lga) {
+  
+  pyramid_female[[i]] <- agesex_lga %>% 
+    dplyr::filter(lga_name == i) %>%
+    #
+    dplyr::select(lga_name,
+                  sex,
+                  age_group,
+                  aboriginal_prop,
+                  non_aboriginal_prop) %>%
+    #
+    tidyr::pivot_longer(cols      = !c(lga_name, sex, age_group),
+                        names_to  = "aboriginal_status",
+                        values_to = "prop") %>% 
+    #
+    f_graph_pyramid_female(prop_variable = prop,
+                           fill_variable = aboriginal_status)
+  
+}
+
+for (i in nephu_lga) {
+  
+  pyramid_male[[i]] <- agesex_lga %>% 
+    dplyr::filter(lga_name == i) %>%
+    #
+    dplyr::select(lga_name,
+                  sex,
+                  age_group,
+                  aboriginal_prop,
+                  non_aboriginal_prop) %>%
+    #
+    tidyr::pivot_longer(cols      = !c(lga_name, sex, age_group),
+                        names_to  = "aboriginal_status",
+                        values_to = "prop") %>% 
+    #
+    f_graph_pyramid_male(prop_variable = prop,
+                         fill_variable = aboriginal_status)
+  
+}
+
+pyramid <- list()
+
+for (i in seq_along(nephu_lga)) {
+  
+  chart_title <- nephu_lga[[i]]
+  
+  pyramid[[chart_title]] <- pyramid_female[[chart_title]] + labs(title = chart_title) + pyramid_lvls + pyramid_male[[chart_title]] +
+  #
+  plot_layout(guides = "collect",
+              widths = c(2, 0.5, 2)) &
+  #
+  theme(legend.position = "none",
+        #
+        plot.title.position = "plot",
+        #
+        plot.title = element_text(size = 11,
+                                  face = "bold"))
+  
+}
+```
+
+
+```{r, fig.height = 3}
+#
+pyramid[["Banyule"]]
+
+pyramid[["Boroondara"]]
+
+pyramid[["Darebin"]]
+
+pyramid[["Hume"]]
+
+pyramid[["Knox"]]
+
+pyramid[["Manningham"]]
+
+pyramid[["Maroondah"]]
+
+pyramid[["Nillumbik"]]
+
+pyramid[["Whitehorse"]]
+
+pyramid[["Whittlesea"]]
+
+pyramid[["Yarra"]]
+```
+
+
+```{r, fig.height = 3.25}
+#
+pyramid_female[["Yarra Ranges"]] + labs(title = "Yarra Ranges") + pyramid_lvls + pyramid_male[["Yarra Ranges"]] +
+  #
+  plot_layout(guides = "collect",
+              widths = c(2, 0.5, 2)) &
+  #
+  theme(legend.position = "bottom",
+        #
+        plot.title.position = "plot",
+        #
+        plot.title = element_text(size = 11,
+                                  face = "bold"))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+# Women of Reproductive Age
+
+```{r}
+# ------------------------------------------------------------------------------
+# Women of reproductive age, by Aboriginality and LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Data wrangling
+women_lga <- census_agesex %>% 
+  dplyr::filter(sex == "Female") %>%
+  #
+  dplyr::mutate(lga_name = dplyr::case_when(
+      lphu_short %in% c("SEPHU", "WPHU") ~ "Other Metro",
+      TRUE ~ as.character(lga_name))) %>% 
+  #
+  dplyr::filter(lga_name %in% c(nephu_lga, "Other Metro", "VIC")) %>%
+  #
+  dplyr::mutate(
+    age_reproductive = dplyr::case_when(
+      age_group %in% c("15-19 years", "20-24 years", "25-29 years", "30-34 years", 
+                       "35-39 years", "40-44 years", "45-49 years") ~ "Yes",
+      #
+      TRUE ~ "No")) %>% 
+  #
+  f_wrangle_census_lga(variable = age_reproductive,
+                       level    = "person",
+                       dichot   = "yes")
+```
+
+::: {custom-style="Dotpt"}
+- 51% of women living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander are of reproductive age (15 to 49 years), compared to 47% of women living in the NEPHU catchment who did not identify as Aboriginal and/or Torres Strait Islander.
+
+- The LGAs in the NEPHU catchment with the largest number of women who identify as Aboriginal and/or Torres Strait Islander who are of reproductive age are Whittlesea (n = 565), Hume (n = 453), and Darebin (n = 419).
+:::
+
+```{r}
+# Figure 5A-5
+f_caption_figure("(A) Number and (B) percentage of women who identified as Aboriginal and/or Torres Strait Islander and are of reproductive age, NEPHU catchment, by LGA, 2021")
+
+figure_number <- women_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 100,
+              y_expand   = 45,
+              y_title    = "Number of women",
+              plot_tag   = "A")
+
+figure_percent <- women_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga)) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 100,
+              y_breaks   = 10,
+              y_expand   = 1,
+              y_title    = "Percentage of women",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- 'Women of reproductive age' is defined as women aged between 15 and 49 years.
+:::
+
+\newpage
+
+```{r}
+# Figure 5A-6
+f_caption_figure("Observed vs. expected number of women of reproductive age who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+women_lga %>%
+  dplyr::filter(lga_name %in% nephu_lga) %>%
+  #
+  f_graph_expected(variable = lga_name,
+                   y_title  = "Number of women",
+                   y_breaks = 100,
+                   y_expand = 35)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- 'Women of reproductive age' is defined as women aged between 15 and 49 years.
+:::
+
+\newpage
+
+```{r}
+# Table 5A-1
+f_caption_table("Observed vs. expected number of women of reproductive age who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+women_lga %>%
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- 'Women of reproductive age' is defined as women aged between 15 and 49 years.
+:::
+

@@ -1,0 +1,1073 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Consequences: Lung Conditions"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "10I Consequences Lung Conditions ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_phidu_iare_hospital.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_agesex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_expected.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_iare.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_expected.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_iare.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 10I-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 10I-"))
+  
+  return(caption)
+  
+}
+```
+
+### What chronic conditions affect Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+# Lung Conditions
+
+## Prevalence
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Lung conditions, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_lung_lga <- f_read_census_lga("Aboriginal_Health_Lung_LGA.csv",
+                                     variable = "lung") %>% 
+  #
+  dplyr::filter(lung != "Not stated")
+
+# Data wrangling
+health_lung_lga <- health_lung_lga %>%
+  #
+  dplyr::mutate(lung = dplyr::case_when(
+    lung == "Has a lung condition (including COPD and emphysema)" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = lung,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Lung conditions, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_lung_agesex <- f_read_census_agesex("Aboriginal_Health_Lung_AgeSex.csv",
+                                           variable = "lung") %>% 
+  #
+  dplyr::filter(lung != "Not stated")
+
+# Data wrangling
+health_lung_agesex <- health_lung_agesex %>% 
+  #
+  dplyr::mutate(lung = dplyr::case_when(
+    lung == "Has a lung condition (including COPD and emphysema)" ~ "yes",
+    TRUE ~ "no")) %>%  
+  #
+  f_wrangle_census_agesex(variable = lung,
+                          dichot   = "yes")
+```
+
+
+```{r}
+#
+results <- list()
+data    <- health_lung_lga
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the ABS Census 2021.
+
+- Overall, 2.2% (n = 249) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census have been told by a doctor or nurse that they have a lung condition. This is higher than for non-Indigenous people living in the NEPHU catchment (1.3%).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who have been told by a doctor or nurse that they have a lung condition ranged from 39 (Darebin and Whittlesea LGAs) to 0 (Manningham LGA).
+
+- The gap between Aboriginal and/or Torres Strait Islander and non-Indigenous people was biggest for Darebin and Whittlesea LGAs.
+
+- The percentage of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who have been told by a doctor or nurse that they have a lung condition ranged from 2.8% (Darebin and Maroondah LGAs) to 0.0% (Manningham LGA).
+
+- The number of people who have been told by a doctor or nurse that they have a lung condition was highest for people aged 50-59 or 60-69 years for both males and females, and the percentage of people who have been told by a doctor or nurse that they have a lung condition increased with increasing age for both genders.
+:::
+
+\newpage
+
+```{r}
+# Figure 10I-1
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who have been told by a doctor or nurse that they have a lung condition, NEPHU catchment, by LGA, 2021")
+
+figure_number <- health_lung_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 5,
+              y_expand   = 1.5,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- health_lung_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 5,
+              y_breaks   = 0.5,
+              y_expand   = 0.125,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Lung conditions' include chronic obstructive pulmonary disease (COPD) and emphysema.
+:::
+
+\newpage
+
+```{r}
+# Figure 10I-2
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have a lung condition, NEPHU catchment, by LGA, 2021")
+
+health_lung_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 5,
+                   y_expand = 1.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Lung conditions' include chronic obstructive pulmonary disease (COPD) and emphysema.
+:::
+
+\newpage
+
+```{r}
+# Table 10I-1
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have a lung condition, NEPHU catchment, by LGA, 2021")
+
+health_lung_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Lung conditions' include chronic obstructive pulmonary disease (COPD) and emphysema.
+:::
+
+\newpage
+
+```{r}
+# Figure 10I-3
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who have been told by a doctor or nurse that they have a lung condition, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- health_lung_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 40,
+                 y_breaks   = 5,
+                 y_expand   = 1,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- health_lung_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 25,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- health_lung_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 40,
+                 y_breaks   = 5,
+                 y_expand   = 1,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- health_lung_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 25,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Lung conditions' include chronic obstructive pulmonary disease (COPD) and emphysema.
+:::
+
+\newpage
+
+```{r} 
+# Figure 10I-4
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have a lung condition, NEPHU catchment, by age and sex, 2021") 
+
+health_lung_agesex %>%  
+  dplyr::filter(age_group %in% age_group_lvl) %>%  
+  # 
+  dplyr::mutate(age_group = factor(age_group, levels = age_group_lvl)) %>% 
+  #
+  f_graph_expected(variable = age_group, 
+                   y_breaks = 5, 
+                   y_expand = 3) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Lung conditions' include chronic obstructive pulmonary disease (COPD) and emphysema.
+:::
+
+\newpage
+
+```{r} 
+# Table 10I-2
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have a lung condition, NEPHU catchment, by age and sex, 2021") 
+
+health_lung_agesex %>% 
+  dplyr::filter(sex == "Female") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Females",
+                   total_row      = 12)
+  
+health_lung_agesex %>% 
+  dplyr::filter(sex == "Male") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Males",
+                   total_row      = 12)
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Lung conditions' include chronic obstructive pulmonary disease (COPD) and emphysema.
+:::
+
+\newpage
+
+## Hospital Admissions
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - lung conditions
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_lung <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_diag",
+                                            column_select = "admissions_for_respiratory_system_diseases_aboriginal_people")
+
+# Data wrangling
+hospital_lung <- hospital_lung %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_lung %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 2,694 hospital admissions for respiratory system diseases for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 402 (Northcote/Preston/Whittlesea IARE) to 16 (Whitehorse IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 2,490 per 100,000 population (Maroondah IARE) to 692 per 100,000 population (Whitehorse IARE).
+
+- 5 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Maroondah, Melbourne/Port Phillip, Northcote/Preston/Whittlesea, Craigieburn/Sunbury, and Moreland/Broadmeadows IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10I-5
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for respiratory system diseases for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_lung %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 50,
+               y_expand   = 5,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_lung %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 250,
+               y_expand   = 50,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Admissions for 'respiratory system diseases' are defined as those with a principal diagnosis code between J00-J99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - J00-J06: Acute upper respiratory infections
+    
+    - J09-J18: Influenza and pneumonia
+    
+    - J20-J22: Other acute lower respiratory infections
+    
+    - J30-J39: Other diseases of upper respiratory tract
+    
+    - J40-J47: Chronic lower respiratory diseases
+    
+    - J60-J70: Lung diseases due to external agents
+    
+    - J80-J84: Other respiratory diseases principally affecting the interstitium
+    
+    - J85-J86: Suppurative and necrotic conditions of lower respiratory tract
+    
+    - J90-J94: Other diseases of pleura
+    
+    - J95-J99: Other diseases of the respiratory system
+:::
+
+\newpage
+
+```{r}
+# Table 10I-3
+f_caption_table("Hospital admissions for respiratory system diseases for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_lung %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Admissions for 'respiratory system diseases' are defined as those with a principal diagnosis code between J00-J99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - J00-J06: Acute upper respiratory infections
+    
+    - J09-J18: Influenza and pneumonia
+    
+    - J20-J22: Other acute lower respiratory infections
+    
+    - J30-J39: Other diseases of upper respiratory tract
+    
+    - J40-J47: Chronic lower respiratory diseases
+    
+    - J60-J70: Lung diseases due to external agents
+    
+    - J80-J84: Other respiratory diseases principally affecting the interstitium
+    
+    - J85-J86: Suppurative and necrotic conditions of lower respiratory tract
+    
+    - J90-J94: Other diseases of pleura
+    
+    - J95-J99: Other diseases of the respiratory system
+:::
+
+\newpage
+
+## Emergency Presentations
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Emergency presentations - lung conditions
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+emergency_lung <- f_read_phidu_iare_hospital(data_sheet    = "ED_total",
+                                             column_select = "emergency_department_presentations_total_presentations_for_diseases_of_the_respiratory_system_aboriginal_people")
+
+# Data wrangling
+emergency_lung <- emergency_lung %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl),
+                #
+                hospital_n_label = round(hospital_n, digits = 0),
+                #
+                hospital_n_label = dplyr::case_when(
+                  is.na(hospital_n) ~ "*",
+                  TRUE ~ format(hospital_n_label, big.mark = ",")),
+                #
+                hospital_rate_label = round(hospital_rate, digits = 0),
+                #
+                hospital_rate_label = dplyr::case_when(
+                  is.na(hospital_rate) ~ "*",
+                  TRUE ~ format(hospital_rate_label, big.mark = ",")),
+                #
+                hospital_ratio_label = round(hospital_ratio, digits = 1),
+                #
+                hospital_ratio_label = dplyr::case_when(
+                  is.na(hospital_ratio) ~ "*",
+                  TRUE ~ format(hospital_ratio_label, big.mark = ","))) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- emergency_lung %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the AIHW National Non-Admitted Patient Emergency Department Care Database.
+
+- Between 01 July 2019 and 30 June 2020 there were 1,073 emergency department presentations for respiratory system diseases for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 156 (Northcote/Preston/Whittlesea IARE) to 29 (Melbourne East IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 4,211 per 100,000 population (Melbourne/Port Phillip IARE) to 2,211 per 100,000 population (Yarra Ranges IARE).
+
+- 4 of the 9 IAREs in the NEPHU catchment area with data available for reporting had an age-standardised presentation rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Maroondah, Northcote/Preston/Whittlesea, and Melbourne North-East IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10I-6
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of emergency department presentations for respiratory system diseases for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+figure_number <- emergency_lung %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_n,
+               text_pos   = 5,
+               y_label    = hospital_n_label,
+               y_max      = NA,
+               y_breaks   = 25,
+               y_expand   = 22,
+               y_title    = "Number of presentations",
+               plot_tag   = "A")
+
+figure_rate <- emergency_lung %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_rate,
+               text_pos   = 75,
+               y_label    = hospital_rate_label,
+               y_max      = NA,
+               y_breaks   = 500,
+               y_expand   = 400,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Presentations for 'respiratory system diseases' are defined as those with a principal diagnosis code between J00-J99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - J00-J06: Acute upper respiratory infections
+    
+    - J09-J18: Influenza and pneumonia
+    
+    - J20-J22: Other acute lower respiratory infections
+    
+    - J30-J39: Other diseases of upper respiratory tract
+    
+    - J40-J47: Chronic lower respiratory diseases
+    
+    - J60-J70: Lung diseases due to external agents
+    
+    - J80-J84: Other respiratory diseases principally affecting the interstitium
+    
+    - J85-J86: Suppurative and necrotic conditions of lower respiratory tract
+    
+    - J90-J94: Other diseases of pleura
+    
+    - J95-J99: Other diseases of the respiratory system
+:::
+
+\newpage
+
+```{r}
+# Table 10I-4
+f_caption_table("Emergency department presentations for respiratory system diseases for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+emergency_lung %>% 
+  dplyr::select(iare_name,
+                hospital_n_label,
+                hospital_rate_label,
+                hospital_ratio_label) %>%
+  #
+  f_table_iare(table_headers = c("Number of\npresentations", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Presentations for 'respiratory system diseases' are defined as those with a principal diagnosis code between J00-J99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - J00-J06: Acute upper respiratory infections
+    
+    - J09-J18: Influenza and pneumonia
+    
+    - J20-J22: Other acute lower respiratory infections
+    
+    - J30-J39: Other diseases of upper respiratory tract
+    
+    - J40-J47: Chronic lower respiratory diseases
+    
+    - J60-J70: Lung diseases due to external agents
+    
+    - J80-J84: Other respiratory diseases principally affecting the interstitium
+    
+    - J85-J86: Suppurative and necrotic conditions of lower respiratory tract
+    
+    - J90-J94: Other diseases of pleura
+    
+    - J95-J99: Other diseases of the respiratory system
+:::
+
+\newpage
+
+# Chronic Obstructive Pulmonary Disease
+
+## Prevalence
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Prevalence - COPD
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+health_copd <- f_read_natsihs_sex("Indicator_Vic_Sex_Chronic_Conditions.csv")
+
+# Data wrangling
+health_copd <- health_copd %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(nocopd_n = total_n - chronic_obstructive_pulmonary_disease_copd_n) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>%
+  #
+  dplyr::rename(yescopd_n  = chronic_obstructive_pulmonary_disease_copd_n,
+                answered_n = total_n) %>% 
+  #
+  dplyr::mutate(yescopd_prop  = yescopd_n / answered_n * 100,
+                nocopd_prop   = nocopd_n / answered_n * 100,
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("yescopd"),
+                starts_with("nocopd"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 3.1% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they were living with chronic obstructive pulmonary disease (COPD). This equates to approximately 1,200 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to be living with COPD than males (3.9% vs. 2.4%).
+:::
+
+```{r}
+# Table 10I-5
+f_caption_table("Self-reported prevalence of chronic obstructive pulmonary disease (COPD) for people who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("yescopd"  = "Yes",
+              "nocopd"   = "No",
+              "answered" = "Total")
+
+health_copd %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "COPD",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Chronic obstructive pulmonary disease' includes chronic bronchitis, emphysema, and chronic airflow limitation.
+:::
+
+\newpage
+
+## Hospital Admissions
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - COPD
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_copd <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_diag",
+                                            column_select = "admissions_for_chronic_obstructive_pulmonary_disease_copd_aboriginal_people")
+
+# Data wrangling
+hospital_copd <- hospital_copd %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl),
+                #
+                hospital_n_label = round(hospital_n, digits = 0),
+                #
+                hospital_n_label = dplyr::case_when(
+                  is.na(hospital_n) ~ "*",
+                  TRUE ~ format(hospital_n_label, big.mark = ",")),
+                #
+                hospital_rate_label = round(hospital_rate, digits = 0),
+                #
+                hospital_rate_label = dplyr::case_when(
+                  is.na(hospital_rate) ~ "*",
+                  TRUE ~ format(hospital_rate_label, big.mark = ",")),
+                #
+                hospital_ratio_label = round(hospital_ratio, digits = 1),
+                #
+                hospital_ratio_label = dplyr::case_when(
+                  is.na(hospital_ratio) ~ "*",
+                  TRUE ~ format(hospital_ratio_label, big.mark = ","))) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_copd %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 522 hospital admissions for chronic obstructive pulmonary disease (COPD) for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 84 (Northcote/Preston/Whittlesea IARE) to 11 (Melbourne East IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 589 per 100,000 population (Moreland/Broadmeadows IARE) to 152 per 100,000 population (Melbourne East IARE).
+
+- 5 of the 9 IAREs in the NEPHU catchment area with data available for reporting had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Moreland/Broadmeadows, Craigieburn/Sunbury, Maroondah, Northcote/Preston/Whittlesea, and Melbourne/Port Phillip IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10I-7
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for chronic obstructive pulmonary disease (COPD) for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_copd %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_n,
+               text_pos   = 2.5,
+               y_label    = hospital_n_label,
+               y_max      = NA,
+               y_breaks   = 10,
+               y_expand   = 7,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_copd %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_rate,
+               text_pos   = 20,
+               y_label    = hospital_rate_label,
+               y_max      = NA,
+               y_breaks   = 100,
+               y_expand   = 25,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'chronic obstructive pulmonary disease' are defined as those with a principal diagnosis code between J40-J44, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following categories are included:
+
+    - J40: Bronchitis, not specified as acute or chronic
+    
+    - J41: Simple and mucopurulent chronic bronchitis
+    
+    - J42: Unspecified chronic bronchitis
+    
+    - J43: Emphysema
+    
+    - J44: Other chronic obstructive pulmonary disease
+:::
+
+\newpage
+
+```{r}
+# Table 10I-6
+f_caption_table("Hospital admissions for chronic obstructive pulmonary disease (COPD) for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_copd %>% 
+  dplyr::select(iare_name,
+                hospital_n_label,
+                hospital_rate_label,
+                hospital_ratio_label) %>%
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'chronic obstructive pulmonary disease' are defined as those with a principal diagnosis code between J40-J44, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following categories are included:
+
+    - J40: Bronchitis, not specified as acute or chronic
+    
+    - J41: Simple and mucopurulent chronic bronchitis
+    
+    - J42: Unspecified chronic bronchitis
+    
+    - J43: Emphysema
+    
+    - J44: Other chronic obstructive pulmonary disease
+:::
+

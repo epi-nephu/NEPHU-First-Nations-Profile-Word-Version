@@ -1,0 +1,1200 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Consequences: Injury"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "10M Consequences Injury ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_phidu_iare_hospital.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_iare.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_iare.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 10M-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 10M-"))
+  
+  return(caption)
+  
+}
+```
+
+### What are the most common causes of injury for Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+# Injuries, Poisoning, and Selected Other External Causes of Morbidity and Mortality
+
+## Hospital Admissions
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - injuries, poisoning, and selected other external causes
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_anyinjury <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_diag",
+                                                 column_select = "admissions_for_injury_poisoning_and_other_external_causes_aboriginal_people")
+
+# Data wrangling
+hospital_anyinjury <- hospital_anyinjury %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_anyinjury %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 4,675 hospital admissions for injuries, poisoning, and selected other external causes of morbidity and mortality for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 608 (Northcote/Preston/Whittlesea IARE) to 71 (Whitehorse IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 3,641 per 100,000 population (Moreland/Broadmeadows IARE) to 2,061 per 100,000 population (Yarra Ranges IARE).
+
+- 4 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Moreland/Broadmeadows, Melbourne/Port Phillip, Northcote/Preston/Whittlesea, and Maroondah IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10M-1
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for injuries, poisoning, and selected other external causes of morbidity and mortality for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_anyinjury %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 100,
+               y_expand   = 2,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_anyinjury %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 500,
+               y_expand   = 450,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Admissions for 'injuries, poisoning, and selected other external causes of morbidity and mortality' are defined as those with a principal diagnosis code between S00-T98, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - S00-S99: Injuries to single body regions
+    
+    - T00-T07: Injuries involving multiple body regions
+    
+    - T08-T14: Injuries to unspecified part of trunk, limb, or body region
+    
+    - T15-T19: Effects of foreign body entering through natural orifice
+    
+    - T20-T32: Burns and corrosions
+    
+    - T33-T35: Frostbite
+    
+    - T36-T50: Poisoning by drugs, medicaments, and biological substances
+    
+    - T51-T65: Toxic effects of substances chiefly nonmedicinal as to source
+    
+    - T66-T78: Other and unspecified effects of external causes
+    
+    - T79: Certain early complications of trauma
+    
+    - T80-T88: Complications of surgical and medical care, not elsewhere classified
+    
+    - T90-T98: Sequelae of injuries, of poisoning, and of other consequences of external causes
+:::
+
+\newpage
+
+```{r}
+# Table 10M-1
+f_caption_table("Hospital admissions for injuries, poisoning, and selected other external causes of morbidity and mortality for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_anyinjury %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Admissions for 'injuries, poisoning, and selected other external causes of morbidity and mortality' are defined as those with a principal diagnosis code between S00-T98, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - S00-S99: Injuries to single body regions
+    
+    - T00-T07: Injuries involving multiple body regions
+    
+    - T08-T14: Injuries to unspecified part of trunk, limb, or body region
+    
+    - T15-T19: Effects of foreign body entering through natural orifice
+    
+    - T20-T32: Burns and corrosions
+    
+    - T33-T35: Frostbite
+    
+    - T36-T50: Poisoning by drugs, medicaments, and biological substances
+    
+    - T51-T65: Toxic effects of substances chiefly nonmedicinal as to source
+    
+    - T66-T78: Other and unspecified effects of external causes
+    
+    - T79: Certain early complications of trauma
+    
+    - T80-T88: Complications of surgical and medical care, not elsewhere classified
+    
+    - T90-T98: Sequelae of injuries, of poisoning, and of other consequences of external causes
+:::
+
+\newpage
+
+## Emergency Presentations
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Emergency presentations - injuries, poisoning, and selected other external causes
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+emergency_anyinjury <- f_read_phidu_iare_hospital(data_sheet    = "ED_total",
+                                                  column_select = "emergency_department_presentations_total_presentations_for_injury_poisoning_and_certain_other_consequences_of_external_causes_aboriginal_people")
+
+# Data wrangling
+emergency_anyinjury <- emergency_anyinjury %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- emergency_anyinjury %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the AIHW National Non-Admitted Patient Emergency Department Care Database.
+
+- Between 01 July 2019 and 30 June 2020 there were 3,218 emergency department presentations for injuries, poisoning, and selected other external causes of morbidity and mortality for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 450 (Northcote/Preston/Whittlesea IARE) to 34 (Whitehorse IARE).
+
+- The age-standardised rate of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 12,325 per 100,000 population (Moreland/Broadmeadows IARE) to 6,644 per 100,000 population (Melbourne East IARE).
+
+- 3 of the 10 IAREs in the NEPHU catchment area had an age-standardised presentation rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Moreland/Broadmeadows, Northcote/Preston/Whittlesea, and Melbourne/Port Phillip IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10M-2
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of emergency department presentations for injuries, poisoning, and selected other external causes of morbidity and mortality for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+figure_number <- emergency_anyinjury %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 50,
+               y_expand   = 5,
+               y_title    = "Number of presentations",
+               plot_tag   = "A")
+
+figure_rate <- emergency_anyinjury %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 1250,
+               y_expand   = 500,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+- Presentations for 'injuries, poisoning, and selected other external causes of morbidity and mortality' are defined as those with a principal diagnosis code between S00-T98, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - S00-S99: Injuries to single body regions
+    
+    - T00-T07: Injuries involving multiple body regions
+    
+    - T08-T14: Injuries to unspecified part of trunk, limb, or body region
+    
+    - T15-T19: Effects of foreign body entering through natural orifice
+    
+    - T20-T32: Burns and corrosions
+    
+    - T33-T35: Frostbite
+    
+    - T36-T50: Poisoning by drugs, medicaments, and biological substances
+    
+    - T51-T65: Toxic effects of substances chiefly nonmedicinal as to source
+    
+    - T66-T78: Other and unspecified effects of external causes
+    
+    - T79: Certain early complications of trauma
+    
+    - T80-T88: Complications of surgical and medical care, not elsewhere classified
+    
+    - T90-T98: Sequelae of injuries, of poisoning, and of other consequences of external causes
+:::
+
+\newpage
+
+```{r}
+# Table 10M-2
+f_caption_table("Emergency department presentations for injuries, poisoning, and selected other external causes of morbidity and mortality for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+emergency_anyinjury %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\npresentations", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+- Presentations for 'injuries, poisoning, and selected other external causes of morbidity and mortality' are defined as those with a principal diagnosis code between S00-T98, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - S00-S99: Injuries to single body regions
+    
+    - T00-T07: Injuries involving multiple body regions
+    
+    - T08-T14: Injuries to unspecified part of trunk, limb, or body region
+    
+    - T15-T19: Effects of foreign body entering through natural orifice
+    
+    - T20-T32: Burns and corrosions
+    
+    - T33-T35: Frostbite
+    
+    - T36-T50: Poisoning by drugs, medicaments, and biological substances
+    
+    - T51-T65: Toxic effects of substances chiefly nonmedicinal as to source
+    
+    - T66-T78: Other and unspecified effects of external causes
+    
+    - T79: Certain early complications of trauma
+    
+    - T80-T88: Complications of surgical and medical care, not elsewhere classified
+    
+    - T90-T98: Sequelae of injuries, of poisoning, and of other consequences of external causes
+:::
+
+\newpage
+
+# Falls
+
+## Hospital Admissions
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - falls
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_falls <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_ext_cause",
+                                               column_select = "admissions_for_falls_aboriginal_people")
+
+# Data wrangling
+hospital_falls <- hospital_falls %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_falls %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 1,067 hospital admissions for falls for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 117 (Northcote/Preston/Whittlesea IARE) to 19 (Whitehorse IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 1,120 per 100,000 population (Melbourne/Port Phillip IARE) to 365 per 100,000 population (Yarra Ranges IARE).
+
+- 5 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Moreland/Broadmeadows, Craigieburn/Sunbury, Melbourne East, and Whitehorse IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10M-3
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for falls for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_falls %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 10,
+               y_expand   = 5,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_falls %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 100,
+               y_expand   = 10,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Admissions for 'falls' are defined as those with a principal diagnosis code between W00-W19 (falls), coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+:::
+
+\newpage
+
+```{r}
+# Table 10M-3
+f_caption_table("Hospital admissions for falls for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_falls %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Admissions for 'falls' are defined as those with a principal diagnosis code between W00-W19 (falls), coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+:::
+
+\newpage
+
+# Transport Crash Injuries
+
+## Hospital Admissions
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - transport crash injuries
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_transport <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_ext_cause",
+                                                 column_select = "admissions_for_transport_crash_injury_aboriginal_people")
+
+# Data wrangling
+hospital_transport <- hospital_transport %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl),
+                #
+                hospital_n_label = round(hospital_n, digits = 0),
+                #
+                hospital_n_label = dplyr::case_when(
+                  is.na(hospital_n) ~ "*",
+                  TRUE ~ format(hospital_n_label, big.mark = ",")),
+                #
+                hospital_rate_label = round(hospital_rate, digits = 0),
+                #
+                hospital_rate_label = dplyr::case_when(
+                  is.na(hospital_rate) ~ "*",
+                  TRUE ~ format(hospital_rate_label, big.mark = ",")),
+                #
+                hospital_ratio_label = round(hospital_ratio, digits = 1),
+                #
+                hospital_ratio_label = dplyr::case_when(
+                  is.na(hospital_ratio) ~ "*",
+                  TRUE ~ format(hospital_ratio_label, big.mark = ","))) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_transport %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 424 hospital admissions for transport crash injuries for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 52 (Northcote/Preston/Whittlesea IARE) to 7 (Maroondah IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 400 per 100,000 population (Moreland/Broadmeadows IARE) to 103 per 100,000 population (Melbourne East IARE).
+
+- 4 of the 9 IAREs in the NEPHU catchment area with data available for reporting had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Moreland/Broadmeadows, Northcote/Preston/Whittlesea, Knox, and Yarra Ranges IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10M-4
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for transport crash injuries for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_transport %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_n,
+               text_pos   = 1.5,
+               y_label    = hospital_n_label,
+               y_max      = NA,
+               y_breaks   = 5,
+               y_expand   = 4,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_transport %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_rate,
+               text_pos   = 10,
+               y_label    = hospital_rate_label,
+               y_max      = NA,
+               y_breaks   = 50,
+               y_expand   = 10,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'transport crash injuries' are defined as those with a principal diagnosis code between V00-V99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following categories are included:
+
+    - V01-V09: Pedestrian injured in transport accident
+    
+    - V10-V19: Pedal cyclist injured in transport accident
+    
+    - V20-V29: Motorcycle rider injured in transport accident
+    
+    - V30-V39: Occupant of three-wheeled motor vehicle injured in transport accident
+    
+    - V40-V49: Car occupant injured in transport accident
+    
+    - V50-V59: Occupant of pick-up truck or van injured in transport accident
+    
+    - V60-V69: Occupant of heavy transport vehicle injured in transport accident
+    
+    - V70-V79: Bus occupant injured in transport accident
+    
+    - V80-V89: Other land transport accidents
+    
+    - V90-V94: Water transport accidents
+    
+    - V95-V97: Air and space transport accidents
+    
+    - V98-V99: Other and unspecified transport accidents
+:::
+
+\newpage
+
+```{r}
+# Table 10M-4
+f_caption_table("Hospital admissions for transport crash injuries for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_transport %>% 
+  dplyr::select(iare_name,
+                hospital_n_label,
+                hospital_rate_label,
+                hospital_ratio_label) %>%
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'transport crash injuries' are defined as those with a principal diagnosis code between V00-V99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following categories are included:
+
+    - V01-V09: Pedestrian injured in transport accident
+    
+    - V10-V19: Pedal cyclist injured in transport accident
+    
+    - V20-V29: Motorcycle rider injured in transport accident
+    
+    - V30-V39: Occupant of three-wheeled motor vehicle injured in transport accident
+    
+    - V40-V49: Car occupant injured in transport accident
+    
+    - V50-V59: Occupant of pick-up truck or van injured in transport accident
+    
+    - V60-V69: Occupant of heavy transport vehicle injured in transport accident
+    
+    - V70-V79: Bus occupant injured in transport accident
+    
+    - V80-V89: Other land transport accidents
+    
+    - V90-V94: Water transport accidents
+    
+    - V95-V97: Air and space transport accidents
+    
+    - V98-V99: Other and unspecified transport accidents
+:::
+
+\newpage
+
+# Assault
+
+## Hospital Admissions
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - assault
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_assault <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_ext_cause",
+                                               column_select = "admissions_for_assault_aboriginal_people")
+
+# Data wrangling
+hospital_assault <- hospital_assault %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl),
+                #
+                hospital_n_label = round(hospital_n, digits = 0),
+                #
+                hospital_n_label = dplyr::case_when(
+                  is.na(hospital_n) ~ "*",
+                  TRUE ~ format(hospital_n_label, big.mark = ",")),
+                #
+                hospital_rate_label = round(hospital_rate, digits = 0),
+                #
+                hospital_rate_label = dplyr::case_when(
+                  is.na(hospital_rate) ~ "*",
+                  TRUE ~ format(hospital_rate_label, big.mark = ",")),
+                #
+                hospital_ratio_label = round(hospital_ratio, digits = 1),
+                #
+                hospital_ratio_label = dplyr::case_when(
+                  is.na(hospital_ratio) ~ "*",
+                  TRUE ~ format(hospital_ratio_label, big.mark = ","))) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_assault %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 388 hospital admissions for assault for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 65 (Northcote/Preston/Whittlesea IARE) to 6 (Knox IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 399 per 100,000 population (Melbourne/Port Phillip IARE) to 89 per 100,000 population (Yarra Ranges IARE).
+
+- 4 of the 9 IAREs in the NEPHU catchment area with data available for reporting had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Northcote/Preston/Whittlesea, Whitehorse, and Moreland/Broadmeadows IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10M-5
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for assault for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_assault %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_n,
+               text_pos   = 1.5,
+               y_label    = hospital_n_label,
+               y_max      = NA,
+               y_breaks   = 10,
+               y_expand   = 6,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_assault %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_rate,
+               text_pos   = 10,
+               y_label    = hospital_rate_label,
+               y_max      = NA,
+               y_breaks   = 50,
+               y_expand   = 7,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'assault' are defined as those with a principal diagnosis code between X85-Y09 (assault), coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+:::
+
+\newpage
+
+```{r}
+# Table 10M-5
+f_caption_table("Hospital admissions for assault for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_assault %>% 
+  dplyr::select(iare_name,
+                hospital_n_label,
+                hospital_rate_label,
+                hospital_ratio_label) %>%
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'assault' are defined as those with a principal diagnosis code between X85-Y09 (assault), coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+:::
+
+\newpage
+
+# Intentional Self-Harm
+
+## Hospital Admissions
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - intentional self-harm
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_harm <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_ext_cause",
+                                            column_select = "admissions_for_intentional_self_harm_aboriginal_people")
+
+# Data wrangling
+hospital_harm <- hospital_harm %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl),
+                #
+                hospital_n_label = round(hospital_n, digits = 0),
+                #
+                hospital_n_label = dplyr::case_when(
+                  is.na(hospital_n) ~ "*",
+                  TRUE ~ format(hospital_n_label, big.mark = ",")),
+                #
+                hospital_rate_label = round(hospital_rate, digits = 0),
+                #
+                hospital_rate_label = dplyr::case_when(
+                  is.na(hospital_rate) ~ "*",
+                  TRUE ~ format(hospital_rate_label, big.mark = ",")),
+                #
+                hospital_ratio_label = round(hospital_ratio, digits = 1),
+                #
+                hospital_ratio_label = dplyr::case_when(
+                  is.na(hospital_ratio) ~ "*",
+                  TRUE ~ format(hospital_ratio_label, big.mark = ","))) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_harm %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 375 hospital admissions for intentional self-harm for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 51 (Northcote/Preston/Whittlesea IARE) to 6 (Whitehorse IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 519 per 100,000 population (Maroondah IARE) to 100 per 100,000 population (Yarra Ranges IARE).
+
+- 7 of the 9 IAREs in the NEPHU catchment area with data available for reporting had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Maroondah, Melbourne East, Moreland/Broadmeadows, Melbourne/Port Phillip, Northcote/Preston/Whittlesea, Melbourne North-East, and Whitehorse IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10M-6
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for intentional self-harm for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_harm %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_n,
+               text_pos   = 1.5,
+               y_label    = hospital_n_label,
+               y_max      = NA,
+               y_breaks   = 5,
+               y_expand   = 5,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_harm %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = hospital_rate,
+               text_pos   = 10,
+               y_label    = hospital_rate_label,
+               y_max      = NA,
+               y_breaks   = 50,
+               y_expand   = 40,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'intentional self-harm' are defined as those with a principal diagnosis code between X60-X84 (intentional self-harm), coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+:::
+
+\newpage
+
+```{r}
+# Table 10M-6
+f_caption_table("Hospital admissions for intentional self-harm for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_harm %>% 
+  dplyr::select(iare_name,
+                hospital_n_label,
+                hospital_rate_label,
+                hospital_ratio_label) %>%
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+`r knitr::asis_output(note_caveat_iare_suppress)`
+
+- Admissions for 'intentional self-harm' are defined as those with a principal diagnosis code between X60-X84 (intentional self-harm), coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en).
+:::
+

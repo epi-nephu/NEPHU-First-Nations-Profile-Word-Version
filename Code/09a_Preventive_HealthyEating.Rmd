@@ -1,0 +1,1022 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Seeking and Risk Behaviours: Healthy Eating"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "09A Preventive Healthy Eating ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_agesex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_survey_agesex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 9A-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 9A-"))
+  
+  return(caption)
+  
+}
+```
+
+### What health promoting or health risk behaviours are Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment undertaking?
+
+# Fruit Consumption
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Fruit consumption meeting guidelines
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+fruit_adult <- f_read_natsihs(data_sheet = "Table 36 Adults",
+                              variable   = fruit,
+                              row_range  = 20:22) %>% 
+  #
+  dplyr::mutate(age_group = "Adults", .before = fruit,
+                #
+                fruit = dplyr::case_when(
+                  stringr::str_detect(fruit, "Total") ~ "Total",
+                  TRUE ~ fruit))
+
+fruit_child <- f_read_natsihs(data_sheet = "Table 37 Children",
+                              variable   = fruit,
+                              row_range  = 7:9) %>% 
+  #
+  dplyr::mutate(age_group = "Children", .before = fruit,
+                #
+                fruit = dplyr::case_when(
+                  stringr::str_detect(fruit, "Total") ~ "Total",
+                  TRUE ~ fruit))
+
+# Data wrangling
+diet_fruit <- fruit_adult %>% 
+  dplyr::bind_rows(fruit_child) %>% 
+  #
+  dplyr::mutate(fruit = factor(fruit,
+                               levels = c("Met recommended fruit guideline",
+                                          "Did not meet recommended fruit guideline",
+                                          "Total")))
+
+# ------------------------------------------------------------------------------
+# Fruit consumption increase/decrease
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+diet_fruit_increase <- f_read_natsihs_sex("Indicator_Vic_Sex_Fruit_Increased.csv")
+
+# Data wrangling
+diet_fruit_increase <- diet_fruit_increase %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(increased_n:stayed_about_the_same_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(similar_n = stayed_about_the_same_n) %>% 
+  #
+  dplyr::mutate(across(increased_n:similar_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("increased"),
+                starts_with("decreased"),
+                starts_with("similar"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 26% of Aboriginal and/or Torres Strait Islander adult survey respondents (aged 18 years and over) living in Victoria met the daily fruit consumption guidelines which recommend a minimum number of daily serves based on a person's age and sex. This equates to approximately 12,700 Aboriginal and/or Torres Strait Islander adults in Victoria.
+
+- Overall, 58% of Aboriginal and/or Torres Strait Islander child survey respondents (aged 2 to 17 years) living in Victoria met the daily fruit consumption guidelines. This equates to approximately 16,000 Aboriginal and/or Torres Strait Islander children in Victoria.
+
+- Female survey respondents were more likely to have met the daily fruit consumption guidelines than males for both adults (29% vs. 23%) and children (63% vs. 56%).
+
+- 18% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they consumed more fruit at the time of the survey than they did at the same time in the previous year, and 65% reported that their level of fruit consumption was similar to the same time in the previous year.
+
+- Male survey respondents were more likely to have increased their fruit consumption compared to the same time in the previous year than females (22% vs. 14%).
+:::
+
+\newpage
+
+```{r}
+# Figure 9A-1
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander and who met recommended daily fruit consumption guidelines, Victoria, by sex and age group, 2022-2023")
+
+figure_number <- diet_fruit %>% 
+  dplyr::filter(sex != "Total" & fruit == "Met recommended fruit guideline") %>%
+  #
+  f_graph_survey_agesex(plot_tag   = "A",
+                        y_variable = estimate,
+                        y_max      = NA,
+                        y_breaks   = 1000,
+                        y_expand   = 750,
+                        y_title    = "Estimated number of people")
+
+figure_percent <- diet_fruit %>% 
+  dplyr::filter(sex != "Total" & fruit == "Met recommended fruit guideline") %>%
+  #
+  f_graph_survey_agesex(plot_tag   = "B",
+                        y_variable = proportion,
+                        y_max      = 100,
+                        y_breaks   = 10,
+                        y_expand   = 1,
+                        y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_survey_agegroups)`
+
+- Fruit consumption was assessed using the National Health and Medical Research Council’s [2013 Australian Dietary Guidelines](https://www.nhmrc.gov.au/adg).
+
+    - The Guidelines recommend a minimum number of daily serves based on a person's age and sex.
+    
+    - A serve of fruit is approximately 150 grams of fresh fruit or 30 grams of dried fruit.
+    
+    - All drinks, beverages and juices were excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 9A-1
+f_caption_table("Daily fruit consumption for people who identified as Aboriginal and/or Torres Strait Islander, Victoria, by sex and age group, 2022-2023")
+
+diet_fruit %>% 
+  dplyr::mutate(
+    fruit = dplyr::case_when(
+      stringr::str_detect(fruit, "Met recommended") ~ "Yes",
+      stringr::str_detect(fruit, "Did not meet")    ~ "No",
+      stringr::str_detect(fruit, "Total")           ~ "Total",
+      #
+      TRUE ~ NA_character_)) %>%
+  #
+  f_table_survey_agesex(table_header = "Met guideline",
+                        divide_row   = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_survey_agegroups)`
+
+- Fruit consumption was assessed using the National Health and Medical Research Council’s [2013 Australian Dietary Guidelines](https://www.nhmrc.gov.au/adg).
+
+    - The Guidelines recommend a minimum number of daily serves based on a person's age and sex.
+    
+    - A serve of fruit is approximately 150 grams of fresh fruit or 30 grams of dried fruit.
+    
+    - All drinks, beverages and juices were excluded.
+:::
+
+\newpage
+
+```{r}
+# Figure 9A-2
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander with increased, decreased, or similar levels of fruit consumption at the time of survey compared to the same time in the previous year, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- diet_fruit_increase %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("increased_n", "similar_n", "decreased_n"),
+                     x_labels   = c("Increased", "Similar", "Decreased"),
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1500,
+                     y_expand   = 250,
+                     y_title    = "Estimated number of people")
+
+figure_percent <- diet_fruit_increase %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("increased_prop", "similar_prop", "decreased_prop"),
+                     x_labels   = c("Increased", "Similar", "Decreased"),
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents were asked whether their daily intake of fruit had increased, decreased, or was similar to the same time a year ago.
+
+    - Both fresh and dried fruits were included.
+    
+    - All drinks, beverages and juices were excluded.
+:::
+
+```{r}
+# Table 9A-2
+f_caption_table("Fruit consumption compared to the same time in the previous year for survey respondents who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("increased" = "Increased",
+              "similar"   = "Similar",
+              "decreased" = "Decreased",
+              "answered"  = "Total")
+
+diet_fruit_increase %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Fruit consumption",
+                     total_row      = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents were asked whether their daily intake of fruit had increased, decreased, or was similar to the same time a year ago.
+
+    - Both fresh and dried fruits were included.
+    
+    - All drinks, beverages and juices were excluded.
+:::
+
+# Vegetable Consumption
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Vegetable consumption
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+vege_adult <- f_read_natsihs(data_sheet = "Table 36 Adults",
+                             variable   = vege,
+                             row_range  = 24:26) %>%
+  #
+  dplyr::mutate(age_group = "Adults", .before = vege,
+                #
+                vege = dplyr::case_when(
+                  stringr::str_detect(vege, "Total") ~ "Total",
+                  TRUE ~ vege))
+
+vege_child <- f_read_natsihs(data_sheet = "Table 37 Children",
+                             variable   = vege,
+                             row_range  = 11:13) %>%
+  #
+  dplyr::mutate(age_group = "Children", .before = vege,
+                #
+                vege = dplyr::case_when(
+                  stringr::str_detect(vege, "Total") ~ "Total",
+                  TRUE ~ vege))
+
+# Data wrangling
+diet_vege <- vege_adult %>%
+  dplyr::bind_rows(vege_child) %>%
+  #
+  dplyr::mutate(vege = factor(vege,
+                              levels = c("Met recommended vegetable guideline",
+                                        "Did not meet recommended vegetable guideline",
+                                        "Total")))
+
+# ------------------------------------------------------------------------------
+# Vegetable consumption increase/decrease
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+diet_vege_increase <- f_read_natsihs_sex("Indicator_Vic_Sex_Vegetable_Increased.csv")
+
+# Data wrangling
+diet_vege_increase <- diet_vege_increase %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(increased_n:stayed_about_the_same_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(similar_n = stayed_about_the_same_n) %>% 
+  #
+  dplyr::mutate(across(increased_n:similar_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("increased"),
+                starts_with("decreased"),
+                starts_with("similar"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 4.5% of Aboriginal and/or Torres Strait Islander adult survey respondents (aged 18 years and over) living in Victoria met the daily vegetable consumption guidelines which recommend a minimum number of daily serves based on a person's age and sex. This equates to approximately 2,200 Aboriginal and/or Torres Strait Islander adults in Victoria. Males were more likely to have met the guidelines than females (5.0% vs. 3.7%).
+
+- Overall, 5.8% of Aboriginal and/or Torres Strait Islander child survey respondents (aged 2 to 17 years) living in Victoria met the daily vegetable consumption guidelines. This equates to approximately 1,600 Aboriginal and/or Torres Strait Islander children in Victoria. Females were more likely to have met the guidelines than males (4.5 % vs. 2.9%).
+
+- 15% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they consumed more vegetables at the time of the survey than they did at the same time in the previous year, and 73% reported that their level of vegetable consumption was similar to the same time in the previous year.
+
+- Male survey respondents were more likely to have increased their vegetable consumption compared to the same time in the previous year than females (18% vs. 10%).
+:::
+
+\newpage
+
+```{r}
+# Figure 9A-3
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander and who met recommended daily vegetable consumption guidelines, Victoria, by sex and age group, 2022-2023")
+
+figure_number <- diet_vege %>% 
+  dplyr::filter(sex != "Total" & vege == "Met recommended vegetable guideline") %>%
+  #
+  f_graph_survey_agesex(plot_tag   = "A",
+                        y_variable = estimate,
+                        y_max      = NA,
+                        y_breaks   = 100,
+                        y_expand   = 10,
+                        y_title    = "Estimated number of people")
+
+figure_percent <- diet_vege %>% 
+  dplyr::filter(sex != "Total" & vege == "Met recommended vegetable guideline") %>%
+  #
+  f_graph_survey_agesex(plot_tag   = "B",
+                        y_variable = proportion,
+                        y_max      = 10,
+                        y_breaks   = 1,
+                        y_expand   = 0.125,
+                        y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_survey_agegroups)`
+
+- Vegetable consumption was assessed using the National Health and Medical Research Council’s [2013 Australian Dietary Guidelines](https://www.nhmrc.gov.au/adg).
+
+    - The Guidelines recommend a minimum number of daily serves based on a person's age and sex.
+    
+    - A serve of vegetables is approximately half a cup of cooked vegetables (including legumes) or one cup of salad vegetables (equivalent to approximately 75 grams).
+    
+    - Tomatoes were included as vegetables.
+    
+    - All drinks, beverages and juices were excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 9A-3
+f_caption_table("Daily vegetable consumption for people who identified as Aboriginal and/or Torres Strait Islander, Victoria, by sex and age group, 2022-2023")
+
+diet_vege %>%
+  dplyr::mutate(
+    vege = dplyr::case_when(
+      stringr::str_detect(vege, "Met recommended") ~ "Yes",
+      stringr::str_detect(vege, "Did not meet")    ~ "No",
+      stringr::str_detect(vege, "Total")           ~ "Total",
+      #
+      TRUE ~ NA_character_)) %>%
+  #
+  f_table_survey_agesex(table_header = "Met guideline",
+                        divide_row   = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_survey_agegroups)`
+
+- Vegetable consumption was assessed using the National Health and Medical Research Council’s [2013 Australian Dietary Guidelines](https://www.nhmrc.gov.au/adg).
+
+    - The Guidelines recommend a minimum number of daily serves based on a person's age and sex.
+    
+    - A serve of vegetables is approximately half a cup of cooked vegetables (including legumes) or one cup of salad vegetables (equivalent to approximately 75 grams).
+    
+    - Tomatoes were included as vegetables.
+    
+    - All drinks, beverages and juices were excluded.
+:::
+
+\newpage
+
+```{r}
+# Figure 9A-4
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander with increased, decreased, or similar levels of vegetable consumption at the time of survey compared to the same time in the previous year, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- diet_vege_increase %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("increased_n", "similar_n", "decreased_n"),
+                     x_labels   = c("Increased", "Similar", "Decreased"),
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 2000,
+                     y_expand   = 1000,
+                     y_title    = "Estimated number of people")
+
+figure_percent <- diet_vege_increase %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("increased_prop", "similar_prop", "decreased_prop"),
+                     x_labels   = c("Increased", "Similar", "Decreased"),
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents were asked whether their daily intake of vegetables had increased, decreased, or was similar to the same time a year ago.
+
+    - Cooked vegetables, salad vegetables, tomatoes, and legumes were included.
+    
+    - All drinks, beverages and juices were excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 9A-4
+f_caption_table("Vegetable consumption compared to the same time in the previous year for survey respondents who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("increased" = "Increased",
+              "similar"   = "Similar",
+              "decreased" = "Decreased",
+              "answered"  = "Total")
+
+diet_vege_increase %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Vegetable consumption",
+                     total_row      = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents were asked whether their daily intake of vegetables had increased, decreased, or was similar to the same time a year ago.
+
+    - Cooked vegetables, salad vegetables, tomatoes, and legumes were included.
+    
+    - All drinks, beverages and juices were excluded.
+:::
+
+\newpage
+
+# Sugar Sweetened Drink Consumption
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Sugar sweetened drink consumption - weekly
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+sugar_adult <- f_read_natsihs(data_sheet = "Table 36 Adults",
+                              variable   = sugar,
+                              row_range  = 32:34) %>%
+  #
+  dplyr::mutate(age_group = "Adults", .before = sugar,
+                #
+                sugar = dplyr::case_when(
+                  stringr::str_detect(sugar, "Total") ~ "Total",
+                  TRUE ~ sugar))
+
+sugar_child <- f_read_natsihs(data_sheet = "Table 37 Children",
+                              variable   = sugar,
+                              row_range  = 19:21) %>%
+  #
+  dplyr::mutate(age_group = "Children", .before = sugar,
+                #
+                sugar = dplyr::case_when(
+                  stringr::str_detect(sugar, "Total") ~ "Total",
+                  TRUE ~ sugar))
+
+# Data wrangling
+diet_sugar <- sugar_adult %>%
+  dplyr::bind_rows(sugar_child) %>%
+  #
+  dplyr::mutate(sugar = factor(sugar,
+                               levels = c("Usually consumes sugar sweetened drinks",
+                                          "Does not usually consume sugar sweetened drinks",
+                                          "Total")))
+
+# ------------------------------------------------------------------------------
+# Sugar sweetened drink consumption - daily
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+diet_sugar_daily <- f_read_natsihs_sex("Indicator_Vic_Sex_Drink_Sugar.csv")
+
+# Data wrangling
+diet_sugar_daily <- diet_sugar_daily %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(consumes_sugar_sweetened_drinks_daily_n:does_not_consume_sugar_sweetened_drinks_daily_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(daily_n    = consumes_sugar_sweetened_drinks_daily_n,
+                notdaily_n = does_not_consume_sugar_sweetened_drinks_daily_n) %>% 
+  #
+  dplyr::mutate(across(daily_n:notdaily_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("daily"),
+                starts_with("notdaily"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 59% of Aboriginal and/or Torres Strait Islander adult survey respondents (aged 18 years and over) living in Victoria consumed sugar sweetened drinks at least once per week. This equates to approximately 29,100 Aboriginal and/or Torres Strait Islander adults in Victoria. Males were more likely to consume sugar sweetened drinks at least once per week than females (70% vs. 52%).
+
+- Overall, 54% of Aboriginal and/or Torres Strait Islander child survey respondents (aged 2 to 17 years) living in Victoria consumed sugar sweetened drinks at least once per week. This equates to approximately 14,800 Aboriginal and/or Torres Strait Islander children in Victoria. Females were more likely to consume sugar sweetened drinks at least once per week than males (62% vs. 47%).
+
+- 22% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they consumed sugar sweetened drinks daily.
+
+- Male survey respondents were more likely to consume sugar sweetened drinks daily than females (30% vs. 13%).
+:::
+
+\newpage
+
+```{r}
+# Figure 9A-5
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander and who consume sugar sweetened drinks at least once per week, Victoria, by sex and age group, 2022-2023")
+
+figure_number <- diet_sugar %>% 
+  dplyr::filter(sex != "Total" & sugar == "Usually consumes sugar sweetened drinks") %>%
+  #
+  f_graph_survey_agesex(plot_tag   = "A",
+                        y_variable = estimate,
+                        y_max      = NA,
+                        y_breaks   = 2000,
+                        y_expand   = 1500,
+                        y_title    = "Estimated number of people")
+
+figure_percent <- diet_sugar %>% 
+  dplyr::filter(sex != "Total" & sugar == "Usually consumes sugar sweetened drinks") %>%
+  #
+  f_graph_survey_agesex(plot_tag   = "B",
+                        y_variable = proportion,
+                        y_max      = 100,
+                        y_breaks   = 10,
+                        y_expand   = 1,
+                        y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_survey_agegroups)`
+
+- 'Sugar sweetened drinks' includes soft drinks, cordials, flavoured mineral waters, caffeinated energy drinks, sports drinks, and electrolyte drinks.
+
+- Alcoholic drinks, fruit juices, vegetable juices, flavoured milks, tea, and coffee are excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 9A-5
+f_caption_table("Weekly sugar sweetened drink consumption for people who identified as Aboriginal and/or Torres Strait Islander, Victoria, by sex and age group, 2022-2023")
+
+diet_sugar %>%
+  dplyr::mutate(sugar = dplyr::case_when(
+    stringr::str_detect(sugar, "Usually consumes") ~ "Yes",
+    stringr::str_detect(sugar, "Does not usually") ~ "No",
+    stringr::str_detect(sugar, "Total")            ~ "Total",
+    #
+    TRUE ~ NA_character_)) %>%
+  #
+  f_table_survey_agesex(table_header = "At least once\nper week",
+                        divide_row   = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_survey_agegroups)`
+
+- 'Sugar sweetened drinks' includes soft drinks, cordials, flavoured mineral waters, caffeinated energy drinks, sports drinks, and electrolyte drinks.
+
+- Alcoholic drinks, fruit juices, vegetable juices, flavoured milks, tea, and coffee are excluded.
+:::
+
+```{r}
+# Table 9A-6
+f_caption_table("Daily sugar sweetened drink consumption for survey respondents who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("daily"    = "Daily",
+              "notdaily" = "Less than daily",
+              "answered" = "Total")
+
+diet_sugar_daily %>%
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Sugar sweetened\ndrink consumption",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Sugar sweetened drinks' includes soft drinks, cordials, flavoured mineral waters, caffeinated energy drinks, sports drinks, and electrolyte drinks.
+
+- Alcoholic drinks, fruit juices, vegetable juices, flavoured milks, tea, and coffee are excluded.
+:::
+
+\newpage
+
+# Artificially Sweetened Drink Consumption
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Diet drink consumption - weekly
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+diet_adult <- f_read_natsihs(data_sheet = "Table 36 Adults",
+                             variable   = diet,
+                             row_range  = 36:38) %>%
+  #
+  dplyr::mutate(age_group = "Adults", .before = diet,
+                #
+                diet = dplyr::case_when(
+                  stringr::str_detect(diet, "Total") ~ "Total",
+                  TRUE ~ diet))
+
+diet_child <- f_read_natsihs(data_sheet = "Table 37 Children",
+                             variable   = diet,
+                             row_range  = 23:25) %>%
+  #
+  dplyr::mutate(age_group = "Children", .before = diet,
+                #
+                diet = dplyr::case_when(
+                  stringr::str_detect(diet, "Total") ~ "Total",
+                  TRUE ~ diet))
+
+# Data wrangling
+diet_diet <- diet_adult %>%
+  dplyr::bind_rows(diet_child) %>%
+  #
+  dplyr::mutate(diet = factor(diet,
+                              levels = c("Usually consumes diet drinks",
+                                         "Does not usually consume diet drinks",
+                                         "Total")))
+
+# ------------------------------------------------------------------------------
+# Diet drink consumption - daily
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+diet_diet_daily <- f_read_natsihs_sex("Indicator_Vic_Sex_Drink_Diet.csv")
+
+# Data wrangling
+diet_diet_daily <- diet_diet_daily %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(consumes_diet_drinks_daily_n:does_not_consume_diet_drinks_daily_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(daily_n    = consumes_diet_drinks_daily_n,
+                notdaily_n = does_not_consume_diet_drinks_daily_n) %>% 
+  #
+  dplyr::mutate(across(daily_n:notdaily_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("daily"),
+                starts_with("notdaily"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 34% of Aboriginal and/or Torres Strait Islander adult survey respondents (aged 18 years and over) living in Victoria consumed artificially sweetened (diet) drinks at least once per week. This equates to approximately 16,800 Aboriginal and/or Torres Strait Islander adults in Victoria. Females were more likely to consume artificially sweetened drinks at least once per week than males (38% vs. 29%).
+
+- Overall, 19% of Aboriginal and/or Torres Strait Islander child survey respondents (aged 2 to 17 years) living in Victoria consumed artificially sweetened drinks at least once per week. This equates to approximately 5,200 Aboriginal and/or Torres Strait Islander children in Victoria. Males were more likely to consume artificially sweetened drinks at least once per week than females (18% vs. 15%).
+
+- 8.1% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they consumed artificially sweetened drinks daily.
+
+- Female survey respondents were more likely to consume artificially sweetened drinks daily than males (11% vs. 4.9%).
+:::
+
+\newpage
+
+```{r}
+# Figure 9A-6
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who identified as Aboriginal and/or Torres Strait Islander who consume artificially sweetened drinks at least once per week, Victoria, by sex and age group, 2022-2023")
+
+figure_number <- diet_diet %>% 
+  dplyr::filter(sex != "Total" & diet == "Usually consumes diet drinks") %>%
+  #
+  f_graph_survey_agesex(plot_tag   = "A",
+                        y_variable = estimate,
+                        y_max      = NA,
+                        y_breaks   = 1000,
+                        y_expand   = 800,
+                        y_title    = "Estimated number of people")
+
+figure_percent <- diet_diet %>% 
+  dplyr::filter(sex != "Total" & diet == "Usually consumes diet drinks") %>%
+  #
+  f_graph_survey_agesex(plot_tag   = "B",
+                        y_variable = proportion,
+                        y_max      = 100,
+                        y_breaks   = 10,
+                        y_expand   = 1,
+                        y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_survey_agegroups)`
+
+- 'Artificially sweetened drinks' includes soft drinks, cordials, flavoured mineral waters, caffeinated energy drinks, sports drinks, and electrolyte drinks that have been sweetened with artificial sweeteners (e.g. saccharin, aspartame, sucralose).
+
+- Fruit juices, vegetable juices, flavoured milks, tea, and coffee are excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 9A-7
+f_caption_table("Weekly artificially sweetened drink consumption for people who identified as Aboriginal and/or Torres Strait Islander, Victoria, by sex and age group, 2022-2023")
+
+diet_diet %>%
+  dplyr::mutate(diet = dplyr::case_when(
+    stringr::str_detect(diet, "Usually consumes") ~ "Yes",
+    stringr::str_detect(diet, "Does not usually") ~ "No",
+    stringr::str_detect(diet, "Total")            ~ "Total",
+    #
+    TRUE ~ NA_character_)) %>%
+  #
+  f_table_survey_agesex(table_header = "At least once\nper week",
+                        divide_row   = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+`r knitr::asis_output(note_caveat_survey_agegroups)`
+
+- 'Artificially sweetened drinks' includes soft drinks, cordials, flavoured mineral waters, caffeinated energy drinks, sports drinks, and electrolyte drinks that have been sweetened with artificial sweeteners (e.g. saccharin, aspartame, sucralose).
+
+- Fruit juices, vegetable juices, flavoured milks, tea, and coffee are excluded.
+:::
+
+```{r}
+# Table 9A-8
+f_caption_table("Daily artificially sweetened drink consumption for survey respondents who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("daily"    = "Daily",
+              "notdaily" = "Less than daily",
+              "answered" = "Total")
+
+diet_diet_daily %>%
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Diet drink\nconsumption",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Artificially sweetened drinks' includes soft drinks, cordials, flavoured mineral waters, caffeinated energy drinks, sports drinks, and electrolyte drinks that have been sweetened with artificial sweeteners (e.g. saccharin, aspartame, sucralose).
+
+- Fruit juices, vegetable juices, flavoured milks, tea, and coffee are excluded.
+:::
+

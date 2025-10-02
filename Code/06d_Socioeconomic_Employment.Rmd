@@ -1,0 +1,2068 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Socioeconomic Determinants of Health: Employment"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "06D Socioeconomic Employment ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_grouped.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_agesex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_ctg_target.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_line_comparison.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_expected.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_grouped_lga.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_grouped_agesex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_rate_year.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_expected.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+officer::block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 6D-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 6D-"))
+  
+  return(caption)
+  
+}
+```
+
+### Are Aboriginal and/or Torres Strait Islanders living in the NEPHU catchment gainfully employed?
+
+# Engagement in employment, education, or training
+
+## Entire population
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Engagement in employment, education, or training - entire population, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+employment_engaged_lga <- f_read_census_lga("Aboriginal_Employment_Engagement_LGA.csv",
+                                            variable = "engagement") %>% 
+  #
+  dplyr::filter(!engagement %in% c("Engagement status undetermined/not stated", "Not applicable"))
+
+# Data wrangling
+employment_engaged_lga <- employment_engaged_lga %>% 
+  #
+  dplyr::mutate(engagement = dplyr::case_when(
+    engagement == "Fully engaged"              ~ "Fully engaged",
+    engagement == "Partially engaged"          ~ "Partially engaged",
+    engagement == "At least partially engaged" ~ "Partially engaged",
+    engagement == "Not engaged"                ~ "Not engaged",
+    TRUE ~ NA_character_)) %>% 
+  #
+  f_wrangle_census_lga(variable = engagement,
+                       level    = "person",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(fully_prop     = aboriginal_n_fully_engaged / aboriginal_total * 100,
+                partially_prop = aboriginal_n_partially_engaged / aboriginal_total * 100,
+                not_prop       = aboriginal_n_not_engaged / aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                fully_n = aboriginal_n_fully_engaged,
+                fully_prop,
+                partially_n = aboriginal_n_partially_engaged,
+                partially_prop,
+                not_n = aboriginal_n_not_engaged,
+                not_prop,
+                aboriginal_total)
+
+# ------------------------------------------------------------------------------------
+# Engagement in employment, education, or training - entire population, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------------
+# Read in Census data
+employment_engaged_agesex <- f_read_census_agesex("Aboriginal_Employment_Engagement_AgeSex.csv",
+                                                  variable = "engagement") %>% 
+  #
+  dplyr::filter(!engagement %in% c("Engagement status undetermined/not stated", "Not applicable"))
+
+# Data wrangling
+employment_engaged_agesex <- employment_engaged_agesex %>% 
+  #
+  dplyr::mutate(engagement = dplyr::case_when(
+    engagement == "Fully engaged"              ~ "Fully engaged",
+    engagement == "Partially engaged"          ~ "Partially engaged",
+    engagement == "At least partially engaged" ~ "Partially engaged",
+    engagement == "Not engaged"                ~ "Not engaged",
+    #
+    TRUE ~ NA_character_)) %>% 
+  #
+  f_wrangle_census_agesex(variable = engagement,
+                          dichot   = "no") %>% 
+  #
+  dplyr::mutate(aboriginal_total = aboriginal_n_fully_engaged + aboriginal_n_partially_engaged + aboriginal_n_not_engaged,
+                #
+                fully_prop     = aboriginal_n_fully_engaged / aboriginal_total * 100,
+                partially_prop = aboriginal_n_partially_engaged / aboriginal_total * 100,
+                not_prop       = aboriginal_n_not_engaged / aboriginal_total * 100) %>% 
+  #
+  dplyr::mutate(across(where(is.numeric), ~replace(., is.na(.), 0)),
+                across(where(is.numeric), ~replace(., is.nan(.), 0))) %>% 
+  #
+  dplyr::select(age_group,
+                sex,
+                fully_n = aboriginal_n_fully_engaged,
+                fully_prop,
+                partially_n = aboriginal_n_partially_engaged,
+                partially_prop,
+                not_n = aboriginal_n_not_engaged,
+                not_prop,
+                aboriginal_total)
+```
+
+
+```{r}
+#
+results <- list()
+data    <- employment_engaged_lga
+
+results$fully_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(fully_n)
+
+results$fully_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(fully_prop)
+
+results$partially_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(partially_n)
+
+results$partially_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(partially_prop)
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(fully_n)) %>% 
+  dplyr::select(lga_name,
+                fully_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(fully_prop)) %>% 
+  dplyr::select(lga_name,
+                fully_prop)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, `r round(results$fully_prop, digits = 0)`% (n = `r formatC(results$fully_n, big.mark = ",")`) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census were fully engaged in employment, education, or training and a further `r round(results$partially_prop, digits = 0)`% (n = `r formatC(results$partially_n, big.mark = ",")`) were partially engaged.
+
+- The number of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who were fully engaged in employment, education, or training ranged from 724 (Whittlesea LGA) to 125 (Nillumbik LGA).
+
+- The percentage of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who were fully engaged in employment, education, or training ranged from 63% (Boroondara LGA) to 49% (Darebin LGA).
+
+- Younger people were more likely to be fully or partially engaged in employment, education, or training. Males were more likely to be fully engaged and females were more likely to be partially engaged.
+:::
+
+```{r}
+# Figure 6D-1
+f_caption_figure("Engagement in employment, education, or training for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+employment_engaged_lga %>%
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_grouped(x_variable = lga_name,
+                  #
+                  factor_levels  = c("not_n", "partially_n", "fully_n"),
+                  factor_colours = c(colour_orange, colour_green, colour_lightblue),
+                  factor_labels  = c("Not engaged", "Partially engaged", "Fully engaged"),
+                  #
+                  y_breaks = 150,
+                  y_expand = 110)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- The population for this indicator is people aged 15 years and over.
+:::
+
+\newpage
+
+```{r}
+# Table 6D-1
+f_caption_table("Engagement in employment, education, or training for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+employment_engaged_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  dplyr::mutate(fully_prop     = round(fully_prop, digits = 1),
+                partially_prop = round(partially_prop, digits = 1),
+                not_prop       = round(not_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_lga(table_headers = c("n", "%", "n", "%", "n", "%"),
+                      group_headers = c("Fully engaged", "Partially engaged", "Not engaged"),
+                      group_widths  = c(2, 2, 2),
+                      last_column   = 8)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- The population for this indicator is people aged 15 years and over.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-2
+f_caption_figure("Engagement in employment, education, or training for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021")
+
+employment_engaged_agesex %>%
+  dplyr::filter(age_group %in% age_group_lvl) %>% 
+  #
+  f_graph_grouped(x_variable = age_group,
+                  #
+                  factor_levels  = c("not_n", "partially_n", "fully_n"),
+                  factor_colours = c(colour_orange, colour_green, colour_lightblue),
+                  factor_labels  = c("Not engaged", "Partially engaged", "Fully engaged"),
+                  #
+                  y_breaks = 150,
+                  y_expand = 75) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- The population for this indicator is people aged 15 years and over.
+:::
+
+\newpage
+
+```{r}
+# Table 6D-2
+f_caption_table("Engagement in employment, education, or training for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021")
+
+employment_engaged_agesex %>% 
+  dplyr::mutate(fully_prop     = round(fully_prop, digits = 1),
+                partially_prop = round(partially_prop, digits = 1),
+                not_prop       = round(not_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_agesex(sex_name = "Female",
+                         #
+                         table_headers = c("n", "%", "n", "%", "n", "%"),
+                         group_headers = c("Fully engaged", "Partially engaged", "Not engaged"),
+                         group_widths  = c(2, 2, 2),
+                         last_column   = 8)
+
+employment_engaged_agesex %>% 
+  dplyr::mutate(fully_prop     = round(fully_prop, digits = 1),
+                partially_prop = round(partially_prop, digits = 1),
+                not_prop       = round(not_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_agesex(sex_name = "Male",
+                         #
+                         table_headers = c("n", "%", "n", "%", "n", "%"),
+                         group_headers = c("Fully engaged", "Partially engaged", "Not engaged"),
+                         group_widths  = c(2, 2, 2),
+                         last_column   = 8)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- The population for this indicator is people aged 15 years and over.
+:::
+
+\newpage
+
+## Young adults
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 7: By 2031, increase the proportion of Aboriginal and Torres Strait Islander youth (15-24 years) who are in employment, education or training to 67%.
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Engagement in employment, education, or training - trend over time ----
+# Data from ABS Census via CtG Information Repository
+# ------------------------------------------------------------------------------
+# Read in ABS data
+employment_fully_trend <- readxl::read_excel(file.path(root_folder, subfolder_ctg,
+                                                       "CTG07_Employment_Education_Data_Tables.xlsx"),
+                                             skip  = 1,
+                                             sheet = "Table CtG7A.1") %>% 
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(indigenous_status = x3,
+                year = x4) %>%
+  #
+  tidyr::fill(indigenous_status, year) %>%
+  #
+  dplyr::filter(!is.na(vic)) %>% 
+  dplyr::filter(row_number() %in% 1:10) %>%
+  #
+  dplyr::select(indigenous_status,
+                year,
+                vic)
+
+# Data wrangling
+employment_fully_trend <- employment_fully_trend %>% 
+  dplyr::mutate(vic = as.numeric(vic))
+
+# ------------------------------------------------------------------------------
+# Engagement in employment, education, or training - young adults
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Data wrangling
+employment_fully_youth <- f_read_census_agesex("Aboriginal_Employment_Engagement_YoungAdult.csv",
+                                               variable = "engagement") %>% 
+  #
+  dplyr::filter(!engagement %in% c("Engagement status undetermined/not stated", "Not applicable")) %>%
+  #
+  dplyr::mutate(engagement = dplyr::case_when(
+    engagement == "Fully engaged" ~ "yes",
+    #
+    TRUE ~ "no"))
+
+# Data wrangling - by LGA
+employment_fully_youth_lga <- employment_fully_youth %>% 
+  f_wrangle_census_lga(variable = engagement,
+                       level    = "person",
+                       dichot   = "yes")
+
+# Data wrangling - by age and sex
+employment_fully_youth_sex <- employment_fully_youth %>%
+  f_wrangle_census_agesex(variable = engagement,
+                          dichot   = "yes") %>% 
+  #
+  dplyr::filter(age_group == "Total") %>% 
+  #
+  dplyr::bind_rows(employment_fully_youth_lga %>% 
+                     dplyr::filter(lga_name == "NEPHU") %>% 
+                     #
+                     dplyr::mutate(age_group = "NEPHU",
+                                   sex       = "NEPHU") %>% 
+                     #
+                     dplyr::select(-lga_name))
+
+# ------------------------------------------------------------------------------
+# Engagement in employment, education, or training - by age ----
+# Data from ABS Census via CtG Information Repository
+# ------------------------------------------------------------------------------
+# Read in ABS data
+employment_fully_age <- readxl::read_excel(file.path(root_folder, subfolder_ctg,
+                                                     "CTG07_Employment_Education_Data_Tables.xlsx"),
+                                           skip  = 1,
+                                           sheet = "Table CtG7A.3") %>% 
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(indigenous_status = x2,
+                year = x3,
+                age = x4) %>%
+  #
+  tidyr::fill(indigenous_status, year, age) %>%
+  #
+  dplyr::filter(!is.na(vic)) %>%
+  dplyr::filter(year == "2021") %>% 
+  dplyr::filter(unit == "%") %>%
+  #
+  dplyr::select(indigenous_status,
+                age,
+                vic)
+
+# Data wrangling
+employment_fully_age <- employment_fully_age %>% 
+  dplyr::mutate(age = stringr::str_replace(age, "years old", "yrs"))
+```
+
+
+```{r}
+#
+results <- list()
+data    <- employment_fully_youth_lga
+
+results$nephu_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_n)
+
+results$nephu_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_prop)
+
+results$non_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(non_aboriginal_prop)
+
+results$comp_non <- dplyr::case_when(
+  results$nephu_prop < results$non_prop * 0.9 ~ "lower than for",
+  results$nephu_prop > results$non_prop * 1.1 ~ "higher than for",
+  TRUE ~ "similar to")
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- The percentage of Aboriginal and/or Torres Strait Islander people aged 15-24 years living in Victoria who were fully engaged in education, employment, or training increased from 60% in 2001 to 66% in 2021.
+
+- Overall, `r round(results$nephu_prop, digits = 0)`% (n = `r formatC(results$nephu_n, big.mark = ",")`) of people aged 15-24 years living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census were fully engaged in education, employment, or training. This is `r results$comp_non` non-Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment (`r round(results$non_prop, digits = 0)`%).
+
+- The number of people aged 15-24 years living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who were fully engaged in education, employment, or training ranged from 243 (Whittlesea LGA) to 36 (Manningham LGA).
+
+- The gap between Aboriginal and/or Torres Strait Islander and non-Aboriginal and/or Torres Strait Islander people was biggest for Whittlesea LGA (50 fewer people) and Hume LGA (47 fewer people).
+
+- The percentage of people aged 15-24 years living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who were fully engaged in education, employment, or training ranged from 100% (Nillumbik LGA) to 63% (Hume LGA).
+
+- 9/12 LGAs in the NEPHU catchment were on or above the Closing the Gap target of 67%.
+
+- 72% (n = 819) of males living in the NEPHU catchment aged 15-24 years who identified as Aboriginal and/or Torres Strait Islander in the Census were fully engaged in education, employment, or training, compared to 68% (n = 736) of females.
+
+- The percentage of people fully engaged in education, employment, or training decreased with increasing age for both Aboriginal and/or Torres Strait Islander and non-Aboriginal and/or Torres Strait Islander people.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-3
+f_caption_figure("Percentage of people aged 15-24 years who identified as Aboriginal and/or Torres Strait Islander and who were fully engaged in education, employment, or training, Victoria, by Aboriginal and/or Torres Strait Islander status, 2001-2021")
+
+employment_fully_trend %>% 
+  f_graph_line_comparison(y_variable = vic,
+                          y_max      = 100,
+                          y_breaks   = 10,
+                          y_expand   = 1,
+                          y_title    = "Percentage of people") %>% 
+  #
+  f_graph_ctg_target(ctg_target = 67)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [ABS Census](https://www.abs.gov.au/census) for the Census years between 2001 and 2021.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in each individual ABS Census.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- The Closing the Gap Target (67%) is marked with a dashed blue line.
+:::
+
+```{r}
+# Table 6D-3
+f_caption_table("Percentage of people aged 25-34 years who identified as Aboriginal and/or Torres Strait Islander and who were fully engaged in education, employment, or training, Victoria, by Aboriginal and/or Torres Strait Islander status, 2001-2021")
+
+employment_fully_trend %>% 
+  tidyr::pivot_wider(names_from  = "indigenous_status",
+                     values_from = "vic") %>% 
+  #
+  dplyr::arrange(year) %>% 
+  #
+  f_table_rate_year() %>% 
+  #
+  flextable::set_header_labels(values = c("Year", "Yes (%)", "No (%)"))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [ABS Census](https://www.abs.gov.au/census) for the Census years between 2001 and 2021.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in each individual ABS Census.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-4
+f_caption_figure("(A) Number and (B) percentage of people aged 15-24 years who identified as Aboriginal and/or Torres Strait Islander and who were fully engaged in education, employment, or training, NEPHU catchment, by LGA, 2021")
+
+figure_number <- employment_fully_youth_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 25,
+              y_expand   = 10,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- employment_fully_youth_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 100,
+              y_breaks   = 10,
+              y_expand   = 1,
+              y_title    = "Percentage of people",
+              plot_tag   = "B") %>% 
+  #
+  f_graph_ctg_target(ctg_target = 67)
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- The Closing the Gap Target (67%) is marked with a dashed blue line in Chart B.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-5
+f_caption_figure("Observed vs. expected number of people aged 15-24 years who were fully engaged in education, employment, or training and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+employment_fully_youth_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 25,
+                   y_expand = 10)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Table 6D-4
+f_caption_table("Observed vs. expected number of people aged 15-24 years who were fully engaged in education, employment, or training and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+employment_fully_youth_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+```{r}
+# Table 6D-5
+f_caption_table("Observed vs. expected number of people aged 15-24 years who were fully engaged in education, employment, or training and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by sex, 2021")
+
+employment_fully_youth_sex %>%
+  f_table_expected(variable       = sex,
+                   variable_label = "Sex",
+                   group_label    = " ",
+                   total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-6
+f_caption_figure("Percentage of people aged 15-24 years who identified as Aboriginal and/or Torres Strait Islander and who were fully engaged in education, employment, or training, Victoria, by Aboriginal and/or Torres Strait Islander status and age, 2021")
+
+ggplot(employment_fully_age) +
+  geom_col(aes(x = age, y = vic, group = indigenous_status, fill = indigenous_status),
+           col      = colour_black,
+           position = position_dodge()) +
+  #
+  geom_hline(aes(yintercept = 67),
+             col       = colour_table_mid,
+             linetype  = "dashed",
+             linewidth = 1) +
+  #
+  scale_y_continuous(limits = c(0, 100),
+                     breaks = scales::breaks_width(10),
+                     expand = expansion(add = c(0, 1)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  scale_fill_manual(values = c(colour_lightblue, colour_burgundy),
+                    labels = c("Yes", "No"),
+                    name   = "Identified as Aboriginal and/or Torres Strait Islander:") +
+  #
+  labs(x = NULL,
+       y = "Percentage of people") +
+  #
+  theme_classic() +
+  #
+  theme(legend.title       = element_text(size = 9),
+        legend.position    = "bottom",
+        legend.location    = "plot",
+        legend.box.spacing = unit(10, "pt"),
+        legend.margin      = margin(c(0, 10, 0, 0)),
+        #
+        axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [ABS Census 2021](https://www.abs.gov.au/census).
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- The Closing the Gap Target (67%) is marked with a dashed blue line.
+:::
+
+```{r}
+# Table 6D-6
+f_caption_table("Percentage of people aged 15-24 years who identified as Aboriginal and/or Torres Strait Islander and who were fully engaged in education, employment, or training, Victoria, by Aboriginal and/or Torres Strait Islander status and age, 2021")
+
+employment_fully_age %>% 
+  tidyr::pivot_wider(names_from  = "indigenous_status",
+                     values_from = "vic") %>% 
+  #
+  dplyr::arrange(age) %>% 
+  #
+  f_table_rate_year() %>% 
+  #
+  flextable::set_header_labels(values = c("Age", "Yes (%)", "No (%)"))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [ABS Census 2021](https://www.abs.gov.au/census).
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+# Employment
+
+## Entire population
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Employment - entire population, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+employment_status_lga <- f_read_census_lga("Aboriginal_Employment_Status_LGA.csv",
+                                           variable = "status") %>% 
+  #
+  dplyr::filter(!status %in% c("Not stated", "Not applicable"))
+
+# Data wrangling
+employment_status_non_aboriginal <- employment_status_lga %>% 
+  #
+  dplyr::mutate(status = dplyr::case_when(
+    status == "Employed, worked full-time"             ~ "Full-time",
+    status == "Employed, worked part-time"             ~ "Part-time",
+    status == "Employed, away from work"               ~ "On leave",
+    status == "Unemployed, looking for full-time work" ~ "Unemployed",
+    status == "Unemployed, looking for part-time work" ~ "Unemployed",
+    status == "Not in the labour force"                ~ "Unemployed",
+    TRUE ~ NA_character_)) %>% 
+  #
+  f_wrangle_census_lga(variable = status,
+                       level    = "person",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(full_prop  = non_aboriginal_n_full_time / non_aboriginal_total * 100,
+                part_prop  = non_aboriginal_n_part_time / non_aboriginal_total * 100,
+                leave_prop = non_aboriginal_n_on_leave / non_aboriginal_total * 100,
+                not_prop   = non_aboriginal_n_unemployed / non_aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                full_n = non_aboriginal_n_full_time,
+                full_prop,
+                part_n = non_aboriginal_n_part_time,
+                part_prop,
+                leave_n = non_aboriginal_n_on_leave,
+                leave_prop,
+                not_n = non_aboriginal_n_unemployed,
+                not_prop,
+                non_aboriginal_total)
+
+employment_status_lga <- employment_status_lga %>% 
+  #
+  dplyr::mutate(status = dplyr::case_when(
+    status == "Employed, worked full-time"             ~ "Full-time",
+    status == "Employed, worked part-time"             ~ "Part-time",
+    status == "Employed, away from work"               ~ "On leave",
+    status == "Unemployed, looking for full-time work" ~ "Unemployed",
+    status == "Unemployed, looking for part-time work" ~ "Unemployed",
+    status == "Not in the labour force"                ~ "Unemployed",
+    TRUE ~ NA_character_)) %>% 
+  #
+  f_wrangle_census_lga(variable = status,
+                       level    = "person",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(full_prop  = aboriginal_n_full_time / aboriginal_total * 100,
+                part_prop  = aboriginal_n_part_time / aboriginal_total * 100,
+                leave_prop = aboriginal_n_on_leave / aboriginal_total * 100,
+                not_prop   = aboriginal_n_unemployed / aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                full_n = aboriginal_n_full_time,
+                full_prop,
+                part_n = aboriginal_n_part_time,
+                part_prop,
+                leave_n = aboriginal_n_on_leave,
+                leave_prop,
+                not_n = aboriginal_n_unemployed,
+                not_prop,
+                aboriginal_total)
+
+# ------------------------------------------------------------------------------
+# Employment - entire population, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+employment_status_agesex <- f_read_census_agesex("Aboriginal_Employment_Status_AgeSex.csv",
+                                                 variable = "status") %>% 
+  #
+  dplyr::filter(!status %in% c("Not stated", "Not applicable"))
+
+# Data wrangling
+employment_status_agesex <- employment_status_agesex %>% 
+  #
+  dplyr::mutate(status = dplyr::case_when(
+    status == "Employed, worked full-time"             ~ "Full-time",
+    status == "Employed, worked part-time"             ~ "Part-time",
+    status == "Employed, away from work"               ~ "On leave",
+    status == "Unemployed, looking for full-time work" ~ "Unemployed",
+    status == "Unemployed, looking for part-time work" ~ "Unemployed",
+    status == "Not in the labour force"                ~ "Unemployed",
+    TRUE ~ NA_character_)) %>% 
+  #
+  f_wrangle_census_agesex(variable = status,
+                          dichot   = "no") %>% 
+  #
+  dplyr::mutate(aboriginal_total = aboriginal_n_full_time + aboriginal_n_part_time + aboriginal_n_on_leave + aboriginal_n_unemployed,
+                #
+                full_prop  = aboriginal_n_full_time / aboriginal_total * 100,
+                part_prop  = aboriginal_n_part_time / aboriginal_total * 100,
+                leave_prop = aboriginal_n_on_leave / aboriginal_total * 100,
+                not_prop   = aboriginal_n_unemployed / aboriginal_total * 100) %>% 
+  #
+  dplyr::mutate(across(where(is.numeric), ~replace(., is.na(.), 0)),
+                across(where(is.numeric), ~replace(., is.nan(.), 0))) %>% 
+  #
+  dplyr::select(age_group,
+                sex,
+                full_n = aboriginal_n_full_time,
+                full_prop,
+                part_n = aboriginal_n_part_time,
+                part_prop,
+                leave_n = aboriginal_n_on_leave,
+                leave_prop,
+                not_n = aboriginal_n_unemployed,
+                not_prop,
+                aboriginal_total)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 36% (n = 2,970) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census were employed full-time, 19% (n = 1,599) were employed part-time, and 5.2% (n = 435) were on leave from work.
+
+- Younger people were more likely to be employed (full-time, part-time, or on leave).
+:::
+
+```{r}
+# Figure 6D-7
+f_caption_figure("Employment status for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+employment_status_lga %>%
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_grouped(x_variable = lga_name,
+                  #
+                  factor_levels  = c("not_n", "leave_n", "part_n", "full_n"),
+                  factor_colours = c(colour_yellow, colour_orange, colour_green, colour_lightblue),
+                  factor_labels  = c("Unemployed", "Employed (on leave)", "Employed (part-time)", "Employed (full-time)"),
+                  #
+                  y_breaks = 200,
+                  y_expand = 25)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- The population for this indicator is people aged 15 years and over who are no longer attending primary or secondary school.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+:::
+
+\newpage
+
+```{r}
+# Table 6D-7
+f_caption_table("Employment status for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+employment_status_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  dplyr::mutate(full_prop  = round(full_prop, digits = 1),
+                part_prop  = round(part_prop, digits = 1),
+                leave_prop = round(leave_prop, digits = 1),
+                not_prop   = round(not_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_lga(table_headers = c("n", "%", "n", "%", "n", "%", "n", "%"),
+                      group_headers = c("Employed\n(full-time)", "Employed\n(part-time)", "Employed\n(on leave)", "Unemployed"),
+                      group_widths  = c(2, 2, 2, 2),
+                      last_column   = 10) %>% 
+  #
+  flextable::width(j = 2:10,
+                   width = 0.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- The population for this indicator is people aged 15 years and over who are no longer attending primary or secondary school.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-8
+f_caption_figure("Employment status for NEPHU residents who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021")
+
+employment_status_agesex %>%
+  dplyr::filter(age_group %in% age_group_lvl) %>% 
+  #
+  f_graph_grouped(x_variable = age_group,
+                  #
+                  factor_levels  = c("not_n", "leave_n", "part_n", "full_n"),
+                  factor_colours = c(colour_yellow, colour_orange, colour_green, colour_lightblue),
+                  factor_labels  = c("Unemployed", "Employed (on leave)", "Employed (part-time)", "Employed (full-time)"),
+                  #
+                  y_breaks = 100,
+                  y_expand = 50) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- The population for this indicator is people aged 15 years and over who are no longer attending primary or secondary school.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+:::
+
+\newpage
+
+```{r}
+# Table 6D-8
+f_caption_table("Employment status for NEPHU residents who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021")
+
+employment_status_agesex %>% 
+  dplyr::mutate(full_prop  = round(full_prop, digits = 1),
+                part_prop  = round(part_prop, digits = 1),
+                leave_prop = round(leave_prop, digits = 1),
+                not_prop   = round(not_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_agesex(sex_name = "Female",
+                         #
+                         table_headers = c("n", "%", "n", "%", "n", "%", "n", "%"),
+                         group_headers = c("Employed\n(full-time)", "Employed\n(part-time)", "Employed\n(on leave)", "Unemployed"),
+                         group_widths  = c(2, 2, 2, 2),
+                         last_column   = 10) %>% 
+  #
+  flextable::width(j = 2:10,
+                   width = 0.5)
+
+employment_status_agesex %>% 
+  dplyr::mutate(full_prop  = round(full_prop, digits = 1),
+                part_prop  = round(part_prop, digits = 1),
+                leave_prop = round(leave_prop, digits = 1),
+                not_prop   = round(not_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_agesex(sex_name = "Male",
+                         #
+                         table_headers = c("n", "%", "n", "%", "n", "%", "n", "%"),
+                         group_headers = c("Employed\n(full-time)", "Employed\n(part-time)", "Employed\n(on leave)", "Unemployed"),
+                         group_widths  = c(2, 2, 2, 2),
+                         last_column   = 10) %>% 
+  #
+  flextable::width(j = 2:10,
+                   width = 0.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- The population for this indicator is people aged 15 years and over who are no longer attending primary or secondary school.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+:::
+
+\newpage
+
+## Working age adults
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 8: By 2031, increase the proportion of Aboriginal and Torres Strait Islander people aged 25-64 years who are employed to 62%.
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Employment - trend over time ----
+# Data from ABS Census via CtG Information Repository
+# ------------------------------------------------------------------------------
+# Read in ABS data
+employment_status_trend <- readxl::read_excel(file.path(root_folder, subfolder_ctg,
+                                                        "CTG08_Economic_Participation_Data_Tables.xlsx"),
+                                              skip  = 1,
+                                              sheet = "Table CtG8A.1") %>% 
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(indigenous_status = x3,
+                year = x4) %>%
+  #
+  tidyr::fill(indigenous_status, year) %>%
+  #
+  dplyr::filter(!is.na(vic)) %>% 
+  dplyr::filter(row_number() %in% 1:14) %>%
+  #
+  dplyr::select(indigenous_status,
+                year,
+                vic)
+
+# Data wrangling
+employment_status_trend <- employment_status_trend %>% 
+  dplyr::mutate(vic = as.numeric(vic))
+
+# ------------------------------------------------------------------------------
+# Employment - working age adults
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Data wrangling
+employment_status_working <- f_read_census_agesex("Aboriginal_Employment_Status_WorkingAge.csv",
+                                                  variable = "status") %>% 
+  #
+  dplyr::filter(!status %in% c("Not stated", "Not applicable")) %>%
+  #
+  dplyr::mutate(status = dplyr::case_when(
+    status == "Employed, worked full-time" ~ "yes",
+    status == "Employed, worked part-time" ~ "yes",
+    status == "Employed, away from work"   ~ "yes",
+    #
+    TRUE ~ "no"))
+
+# Data wrangling - by LGA
+employment_status_working_lga <- employment_status_working %>% 
+  f_wrangle_census_lga(variable = status,
+                       level    = "person",
+                       dichot   = "yes")
+
+# Data wrangling - by age and sex
+employment_status_working_sex <- employment_status_working %>%
+  f_wrangle_census_agesex(variable = status,
+                          dichot   = "yes") %>% 
+  #
+  dplyr::filter(age_group == "Total") %>% 
+  #
+  dplyr::bind_rows(employment_status_working_lga %>% 
+                     dplyr::filter(lga_name == "NEPHU") %>%
+                     #
+                     dplyr::mutate(age_group = "NEPHU",
+                                   sex       = "NEPHU") %>% 
+                     #
+                     dplyr::select(-lga_name))
+```
+
+
+```{r}
+#
+results <- list()
+data    <- employment_status_working_lga
+
+results$nephu_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_n)
+
+results$nephu_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_prop)
+
+results$non_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(non_aboriginal_prop)
+
+results$comp_non <- dplyr::case_when(
+  results$nephu_prop < results$non_prop * 0.9 ~ "lower than for",
+  results$nephu_prop > results$non_prop * 1.1 ~ "higher than for",
+  TRUE ~ "similar to")
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- The percentage of Aboriginal and/or Torres Strait Islander people aged 25-64 years living in Victoria who were employed (full-time, part-time, or on leave) increased from 52% in 1991 to 62% in 2021.
+
+- Overall, `r round(results$nephu_prop, digits = 0)`% (n = `r formatC(results$nephu_n, big.mark = ",")`) of people aged 25-64 years living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census were employed (full-time, part-time, or on leave). This is `r results$comp_non` non-Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment (`r round(results$non_prop, digits = 0)`%).
+
+- The number of people aged 25-64 years living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who were employed (full-time, part-time, or on leave) ranged from 604 (Whittlesea LGA) to 66 (Manningham LGA).
+
+- The gap between Aboriginal and/or Torres Strait Islander and non-Aboriginal and/or Torres Strait Islander people was biggest for Darebin LGA (93 fewer people) and Yarra Ranges LGA (80 fewer people).
+
+- The percentage of people aged 25-64 years living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who were employed (full-time, part-time, or on leave) ranged from 82% (Boroondara LGA) to 65% (Maroondah LGA).
+
+- All 12 LGAs in the NEPHU catchment were above the Closing the Gap target of 62%.
+
+- 66% (n = 1,661) of females living in the NEPHU catchment aged 25-64 years who identified as Aboriginal and/or Torres Strait Islander in the Census were employed (full-time, part-time, or on leave), compared to 73% (n = 1,792) of males.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-9
+f_caption_figure("Percentage of people aged 25-64 years who identified as Aboriginal and/or Torres Strait Islander and who were employed (full-time, part-time, or on leave), Victoria, by Aboriginal and/or Torres Strait Islander status, 1991-2021")
+
+employment_status_trend %>% 
+  f_graph_line_comparison(y_variable = vic,
+                          y_max      = 100,
+                          y_breaks   = 10,
+                          y_expand   = 1,
+                          y_title    = "Percentage of people") %>% 
+  #
+  f_graph_ctg_target(ctg_target = 62)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [ABS Census](https://www.abs.gov.au/census) for the Census years between 1991 and 2021.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in each individual ABS Census.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+
+- The Closing the Gap Target (62%) is marked with a dashed blue line.
+:::
+
+```{r}
+# Table 6D-9
+f_caption_table("Percentage of people aged 25-64 years who identified as Aboriginal and/or Torres Strait Islander and who were employed (full-time, part-time, or on leave), Victoria, by Aboriginal and/or Torres Strait Islander status, 1991-2021")
+
+employment_status_trend %>% 
+  tidyr::pivot_wider(names_from  = "indigenous_status",
+                     values_from = "vic") %>% 
+  #
+  dplyr::arrange(year) %>% 
+  #
+  f_table_rate_year() %>% 
+  #
+  flextable::set_header_labels(values = c("Year", "Yes (%)", "No (%)"))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [ABS Census](https://www.abs.gov.au/census) for the Census years between 1991 and 2021.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in each individual ABS Census.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+:::
+
+```{r}
+# Figure 6D-10
+f_caption_figure("Number of people aged 25-64 years who identified as Aboriginal and/or Torres Strait Islander and who were employed (full-time, part-time, or on leave), NEPHU catchment, by LGA, 2021")
+
+figure_number <- employment_status_working_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 100,
+              y_expand   = 105,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- employment_status_working_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 100,
+              y_breaks   = 10,
+              y_expand   = 1,
+              y_title    = "Percentage of people",
+              plot_tag   = "B") %>% 
+  #
+  f_graph_ctg_target(ctg_target = 62)
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+
+- The Closing the Gap Target (62%) is marked with a dashed blue line in Chart B.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-11
+f_caption_figure("Observed vs. expected number of people aged 25-64 years who were employed (full-time, part-time, or on leave) and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+employment_status_working_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 100,
+                   y_expand = 55)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+:::
+
+\newpage
+
+```{r}
+# Table 6D-10
+f_caption_table("Observed vs. expected number of people aged 25-64 years who were employed (full-time, part-time, or on leave) and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+employment_status_working_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+:::
+
+```{r}
+# Table 6D-11
+f_caption_table("Observed vs. expected number of people aged 25-64 years who were employed (full-time, part-time, or on leave) and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by sex, 2021")
+
+employment_status_working_sex %>%
+  f_table_expected(variable       = sex,
+                   variable_label = "Sex",
+                   group_label    = " ",
+                   total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- Employed people are defined as those who were employed full-time (35 hours or more per week), part-time (less than 35 hours per week), or on leave from work in the week prior to Census night.
+
+- Unemployed people are defined as people who are not currently employed and are actively looking for work (either part-time or full-time) or people who are not part of the labour force.
+:::
+
+# Volunteer work
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Volunteer work - entire population, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+volunteer_lga <- f_read_census_lga("Aboriginal_Employment_Volunteer_LGA.csv",
+                                   variable = "volunteer") %>% 
+  #
+  dplyr::filter(!volunteer %in% c("Not stated", "Not applicable"))
+  
+# Data wrangling
+volunteer_lga <- volunteer_lga %>% 
+  #
+  dplyr::mutate(volunteer = dplyr::case_when(
+    volunteer == "Volunteer" ~ "yes",
+    #
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = volunteer,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Volunteer work - entire population, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+volunteer_agesex <- f_read_census_agesex("Aboriginal_Employment_Volunteer_AgeSex.csv",
+                                         variable = "volunteer") %>% 
+  #
+  dplyr::filter(!volunteer %in% c("Not stated", "Not applicable"))
+
+# Data wrangling
+volunteer_agesex <- volunteer_agesex %>%
+  #
+  dplyr::mutate(volunteer = dplyr::case_when(
+    volunteer == "Volunteer" ~ "yes",
+    #
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_agesex(variable = volunteer,
+                          dichot   = "yes")
+```
+
+
+```{r}
+#
+results <- list()
+data    <- volunteer_lga
+
+results$nephu_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_n)
+
+results$nephu_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_prop)
+
+results$non_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(non_aboriginal_prop)
+
+results$comp_non <- dplyr::case_when(
+  results$nephu_prop < results$non_prop * 0.9 ~ "lower than for",
+  results$nephu_prop > results$non_prop * 1.1 ~ "higher than for",
+  TRUE ~ "similar to")
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, `r round(results$nephu_prop, digits = 0)`% (n = `r formatC(results$nephu_n, big.mark = ",")`) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census did volunteer work for an organisation or group. This is `r results$comp_non` non-Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment (`r round(results$non_prop, digits = 0)`%).
+
+- The number of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who did volunteer work for an organisation or group ranged from 193 (Yarra Ranges LGA) to 34 (Nillumbik LGA).
+
+- The gap between Aboriginal and/or Torres Strait Islander and non-Aboriginal and/or Torres Strait Islander people was biggest for Whittlesea LGA (39 more people) and Hume LGA (19 more people).
+
+- The percentage of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who did volunteer work for an organisation or group ranged from 22% (Yarra LGA) to 9.3% (Hume LGA).
+:::
+
+```{r}
+# Figure 6D-12
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who did volunteer work for an organisation or group, NEPHU catchment, by LGA, 2021")
+
+figure_number <- volunteer_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 20,
+              y_expand   = 10,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- volunteer_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 100,
+              y_breaks   = 10,
+              y_expand   = 1,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-13
+f_caption_figure("Observed vs. expected number of people who did volunteer work for an organisation or group and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+volunteer_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 20,
+                   y_expand = 10)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Table 6D-12
+f_caption_table("Observed vs. expected number of people who did volunteer work for an organisation or group and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+volunteer_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-14
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who did volunteer work for an organisation or group, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- volunteer_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 160,
+                 y_breaks   = 20,
+                 y_expand   = 2,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- volunteer_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 100,
+                 y_breaks   = 10,
+                 y_expand   = 1,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- volunteer_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 160,
+                 y_breaks   = 20,
+                 y_expand   = 2,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- volunteer_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 100,
+                 y_breaks   = 10,
+                 y_expand   = 1,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r} 
+# Figure 6D-15
+f_caption_figure("Observed vs. expected number of people who did volunteer work for an organisation or group and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021") 
+
+volunteer_agesex %>%  
+  dplyr::filter(age_group %in% age_group_lvl) %>%  
+  # 
+  dplyr::mutate(age_group = factor(age_group, levels = age_group_lvl)) %>% 
+  #
+  f_graph_expected(variable = age_group, 
+                   y_breaks = 20, 
+                   y_expand = 5) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+```{r} 
+# Table 6D-13
+f_caption_table("Observed vs. expected number of people who did volunteer work for an organisation or group and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021") 
+
+volunteer_agesex %>% 
+  dplyr::filter(sex == "Female") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Females",
+                   total_row      = 12)
+  
+volunteer_agesex %>% 
+  dplyr::filter(sex == "Male") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Males",
+                   total_row      = 12)
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+:::
+
+\newpage
+
+# Unpaid carers
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Unpaid carers - entire population, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+carer_lga <- f_read_census_lga("Aboriginal_Employment_Carer_LGA.csv",
+                               variable = "carer") %>% 
+  #
+  dplyr::filter(!carer %in% c("Not stated", "Not applicable"))
+
+# Data wrangling
+carer_lga <- carer_lga %>% 
+  #
+  dplyr::mutate(carer = dplyr::case_when(
+    carer == "Provided unpaid assistance" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = carer,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Unpaid carers - entire population, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+carer_agesex <- f_read_census_agesex("Aboriginal_Employment_Carer_AgeSex.csv",
+                                     variable = "carer") %>% 
+  #
+  dplyr::filter(!carer %in% c("Not stated", "Not applicable"))
+
+# Data wrangling
+carer_agesex <- carer_agesex %>%
+  #
+  dplyr::mutate(carer = dplyr::case_when(
+    carer == "Provided unpaid assistance" ~ "yes",
+    #
+    TRUE ~ "no")) %>% 
+  
+  f_wrangle_census_agesex(variable = carer,
+                          dichot   = "yes")
+```
+
+
+```{r, include = FALSE}
+#
+results <- list()
+data    <- carer_lga
+
+results$nephu_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_n)
+
+results$nephu_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(aboriginal_prop)
+
+results$non_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  pull(non_aboriginal_prop)
+
+results$comp_non <- dplyr::case_when(
+  results$nephu_prop < results$non_prop * 0.9 ~ "lower than for",
+  results$nephu_prop > results$non_prop * 1.1 ~ "higher than for",
+  TRUE ~ "similar to")
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, `r round(results$nephu_prop, digits = 0)`% (n = `r formatC(results$nephu_n, big.mark = ",")`) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census undertook unpaid caring duties. This is `r results$comp_non` non-Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment (`r round(results$non_prop, digits = 0)`%).
+
+- The number of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who undertook unpaid caring duties ranged from 233 (Hume LGA) to 35 (Manningham LGA).
+
+- The gap between Aboriginal and/or Torres Strait Islander and non-Aboriginal and/or Torres Strait Islander people was biggest for Hume LGA (66 more people) and Knox and Whittlesea LGAs (44 more people).
+
+- The percentage of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who undertook unpaid caring duties ranged from 23% (Whitehorse LGA) to 13% (Yarra LGA).
+
+- Younger people and females were more likely to undertake unpaid caring duties.
+:::
+
+```{r}
+# Figure 6D-16
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who undertook unpaid caring duties, NEPHU catchment, by LGA, 2021")
+
+figure_number <- carer_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 20,
+              y_expand   = 10,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- carer_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 100,
+              y_breaks   = 10,
+              y_expand   = 1,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Unpaid carers are defined as those who provided unpaid assistance to a person with a disability, health condition, or who required assistance due to old age.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-17
+f_caption_figure("Observed vs. expected number of people who undertook unpaid caring duties and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+carer_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 20,
+                   y_expand = 10)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Unpaid carers are defined as those who provided unpaid assistance to a person with a disability, health condition, or who required assistance due to old age.
+:::
+
+\newpage
+
+```{r}
+# Table 6D-14
+f_caption_table("Observed vs. expected number of people who undertook unpaid caring duties and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+carer_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Unpaid carers are defined as those who provided unpaid assistance to a person with a disability, health condition, or who required assistance due to old age.
+:::
+
+\newpage
+
+```{r}
+# Figure 6D-18
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who undertook unpaid caring duties, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- carer_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 200,
+                 y_breaks   = 20,
+                 y_expand   = 5,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- carer_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 100,
+                 y_breaks   = 10,
+                 y_expand   = 1,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- carer_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 200,
+                 y_breaks   = 20,
+                 y_expand   = 5,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- carer_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 100,
+                 y_breaks   = 10,
+                 y_expand   = 1,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- Unpaid carers are defined as those who provided unpaid assistance to a person with a disability, health condition, or who required assistance due to old age.
+:::
+
+\newpage
+
+```{r} 
+# Figure 6D-19
+f_caption_figure("Observed vs. expected number of people who undertook unpaid caring duties and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021") 
+
+carer_agesex %>%  
+  dplyr::filter(age_group %in% age_group_lvl) %>%  
+  # 
+  dplyr::mutate(age_group = factor(age_group, levels = age_group_lvl)) %>% 
+  #
+  f_graph_expected(variable = age_group, 
+                   y_breaks = 20, 
+                   y_expand = 13) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- Unpaid carers are defined as those who provided unpaid assistance to a person with a disability, health condition, or who required assistance due to old age.
+:::
+
+\newpage
+
+```{r} 
+# Table 6D-15
+f_caption_table("Observed vs. expected number of people who undertook unpaid caring duties and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021") 
+
+carer_agesex %>% 
+  dplyr::filter(sex == "Female") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Females",
+                   total_row      = 12)
+  
+carer_agesex %>% 
+  dplyr::filter(sex == "Male") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Males",
+                   total_row      = 12)
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- Unpaid carers are defined as those who provided unpaid assistance to a person with a disability, health condition, or who required assistance due to old age.
+:::
+

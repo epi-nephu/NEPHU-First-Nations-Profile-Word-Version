@@ -1,0 +1,2400 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Consequences: Infectious Diseases"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "10K Consequences Infectious ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork,
+               glue,
+               odbc,
+               DBI)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_phess.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_phidu_iare_hospital.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_phess_counts.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_phess_rates.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_iare.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_phess.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_iare.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 10K-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 10K-"))
+  
+  return(caption)
+  
+}
+```
+
+### What infectious diseases affect Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+```{r, include = FALSE}
+# Read in PHESS data
+cases_all <- read.csv(paste0(here::here(), "/Data", "/PHAR_Extract_2015_2024.csv")) 
+
+# Data wrangling
+cases_all <- cases_all %>% 
+  dplyr::mutate(event_date = lubridate::ymd(event_date),
+                year       = as.character(lubridate::year(event_date)),
+                #
+                lga = stringr::str_extract(lga, "^.*?(?=\\()"),
+                lga = stringr::str_trim(lga),
+                #
+                nephu_case = dplyr::case_when(lga %in% nephu_lga ~ "NEPHU",
+                                              TRUE ~ "Not NEPHU"),
+                #
+                indigenous_status = dplyr::case_when(
+                  indigenous_status == "Aboriginal and Torres Strait Islander origin"     ~ "aboriginal",
+                  indigenous_status == "Aboriginal but not Torres Strait Islander origin" ~ "aboriginal",
+                  indigenous_status == "Torres Strait Islander but not Aboriginal origin" ~ "aboriginal",
+                  indigenous_status == "Not Aboriginal or Torres Strait Islander"         ~ "non_aboriginal",
+                  TRUE ~ "not_stated")) %>% 
+  #
+  dplyr::filter(indigenous_status != "not_stated")
+```
+
+# Vaccine Preventable Conditions
+
+```{r, include = FALSE}
+# ---------------------------------------------------------------------------------
+# Notifiable conditions: vaccine preventable and respiratory diseases
+# Data from PHESS
+# ---------------------------------------------------------------------------------
+conditions_vax_resp <- c("Diphtheria", "HiB", "Influenza", "Measles", "IMD", "Mumps",
+                         "Pertussis",  "IPD", "RSV", "VZV")
+
+cases_vaccine <- cases_all %>%
+  dplyr::mutate(condition = dplyr::case_when(
+    condition == "Haemophilus influenzae type B infection"  ~ "HiB",
+    condition == "Meningococcal infection"                  ~ "IMD",
+    condition == "Pneumococcal infection (IPD)"             ~ "IPD",
+    condition == "Respiratory Syncytial virus"              ~ "RSV",
+    condition == "Varicella zoster infection (Chickenpox)"  ~ "VZV",
+    condition == "Varicella zoster infection (Shingles)"    ~ "VZV",
+    condition == "Varicella zoster infection (Unspecified)" ~ "VZV",
+    TRUE ~ condition)) %>% 
+  #
+  f_wrangle_phess(conditions_list = conditions_vax_resp)
+```
+
+::: {custom-style="Dotpt"}
+- Data for these indicators were obtained from the Victorian Public Health Surveillance System.
+
+- Data presented here are for notifications where Aboriginal and/or Torres Strait Islander status was known. The completeness of data on Aboriginal and/or Torres Strait Islander status varies across conditions and over time.
+
+- Data broken down by Aboriginal and/or Torres Strait Islander status are publicly available for a selection of conditions at statewide level. Additional data may be made available upon request to the Victorian Department of Health.
+
+- The number and rate of pertussis notifications decreased during the COVID-19 pandemic and rebounded significantly during 2024. This increase in 2024 was seen for both Aboriginal and/or Torres Strait Islander people and non-Indigenous people in both the NEPHU catchment and Victoria, and similar increases were seen across all other Australian states and territories.
+
+- The most recent notification for invasive meningococcal disease (IMD) for an Aboriginal and/or Torres Strait Islander resident of the NEPHU catchment was in 2018. For Victoria overall, the number of notifications and notification rates have decreased in the years following the COVID-19 pandemic, however the rates of IMD remain higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people.
+
+- The notification rates of invasive pneumococcal disease (IPD) were consistently higher for the NEPHU catchment compared to Victoria overall for both Aboriginal and/or Torres Strait Islander people and non-Indigenous people. The rates of IPD were also consistently higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people.
+
+- The number and rates of Varicella Zoster notifications in the years following the COVID-19 pandemic remained lower than for pre-pandemic years for Aboriginal and/or Torres Strait Islander people residing in the NEPHU catchment but have since rebounded to pre-pandemic levels for Aboriginal and/or Torres Strait Islander people in Victoria and for non-Indigenous people.
+:::
+
+\newpage
+
+## Pertussis
+
+```{r}
+# Figure 10K-1
+f_caption_figure("Number of pertussis notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_vaccine %>%
+  f_graph_phess_counts(condition_name = "Pertussis",
+                       y_max          = NA,
+                       y_breaks       = 20,
+                       y_expand       = 20)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- The following pertussis notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <12 months
+  
+  - Women known to be in the last month of pregnancy
+  
+  - Persons known to be in contact with children aged <6 months or women in the last month of pregnancy
+  
+  - Persons known to attend or work in settings where there is likely to be contact with children aged <6 months or women in the last month of pregnancy
+  
+- Depending on operational capacity, children aged <5 years and children aged <10 years should also be followed up.
+
+- The management of pertussis transitioned from the Victorian Department of Health to Local Public Health Units on 18/07/2022.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-2
+f_caption_figure("Pertussis notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_vaccine %>% 
+  dplyr::filter(condition == "Pertussis") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 275,
+                      y_breaks   = 25,
+                      y_expand   = 5)
+
+figure_vic <- cases_vaccine %>% 
+  dplyr::filter(condition == "Pertussis") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 275,
+                      y_breaks   = 25,
+                      y_expand   = 5)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- The following pertussis notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <12 months
+  
+  - Women known to be in the last month of pregnancy
+  
+  - Persons known to be in contact with children aged <6 months or women in the last month of pregnancy
+  
+  - Persons known to attend or work in settings where there is likely to be contact with children aged <6 months or women in the last month of pregnancy
+  
+- Depending on operational capacity, children aged <5 years and children aged <10 years should also be followed up.
+
+- The management of pertussis transitioned from the Victorian Department of Health to Local Public Health Units on 18/07/2022.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-1
+f_caption_table("Number of pertussis notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_vaccine %>% 
+  f_table_phess(condition_name = "Pertussis")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- The following pertussis notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <12 months
+  
+  - Women known to be in the last month of pregnancy
+  
+  - Persons known to be in contact with children aged <6 months or women in the last month of pregnancy
+  
+  - Persons known to attend or work in settings where there is likely to be contact with children aged <6 months or women in the last month of pregnancy
+  
+- Depending on operational capacity, children aged <5 years and children aged <10 years should also be followed up.
+
+- The management of pertussis transitioned from the Victorian Department of Health to Local Public Health Units on 18/07/2022.
+:::
+
+\newpage
+
+## Invasive Meningococcal Disease (IMD)
+
+```{r}
+# Figure 10K-3
+f_caption_figure("Number of invasive meningococcal disease notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_vaccine %>%
+  f_graph_phess_counts(condition_name = "IMD",
+                       y_max          = 5,
+                       y_breaks       = 1,
+                       y_expand       = 0.125)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- All invasive meningococcal disease notifications are signed out for urgent case management and follow-up by Local Public Health Units.
+
+- The management of invasive meningococcal disease transitioned from the Victorian Department of Health to Local Public Health Units on 27/02/2023.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-4
+f_caption_figure("Invasive meningococcal disease notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_vaccine %>% 
+  dplyr::filter(condition == "IMD") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 10,
+                      y_breaks   = 1,
+                      y_expand   = 0.125)
+
+figure_vic <- cases_vaccine %>% 
+  dplyr::filter(condition == "IMD") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 10,
+                      y_breaks   = 1,
+                      y_expand   = 0.125)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All invasive meningococcal disease notifications are signed out for urgent case management and follow-up by Local Public Health Units.
+
+- The management of invasive meningococcal disease transitioned from the Victorian Department of Health to Local Public Health Units on 27/02/2023.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-2
+f_caption_table("Number of invasive meningococcal disease notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_vaccine %>% 
+  f_table_phess(condition_name = "IMD")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All invasive meningococcal disease notifications are signed out for urgent case management and follow-up by Local Public Health Units.
+
+- The management of invasive meningococcal disease transitioned from the Victorian Department of Health to Local Public Health Units on 27/02/2023.
+:::
+
+\newpage
+
+## Invasive Pneumococcal Disease (IPD)
+
+```{r}
+# Figure 10K-5
+f_caption_figure("Number of invasive pneumococcal disease notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_vaccine %>%
+  f_graph_phess_counts(condition_name = "IPD",
+                       y_max          = NA,
+                       y_breaks       = 2,
+                       y_expand       = 1.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- All invasive pneumococcal disease notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- The management of invasive pneumococcal disease transitioned from the Victorian Department of Health to Local Public Health Units on 15/08/2022.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-6
+f_caption_figure("Invasive pneumococcal disease notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_vaccine %>% 
+  dplyr::filter(condition == "IPD") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 40,
+                      y_breaks   = 5,
+                      y_expand   = 1)
+
+figure_vic <- cases_vaccine %>% 
+  dplyr::filter(condition == "IPD") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 40,
+                      y_breaks   = 5,
+                      y_expand   = 1)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All invasive pneumococcal disease notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- The management of invasive pneumococcal disease transitioned from the Victorian Department of Health to Local Public Health Units on 15/08/2022.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-3
+f_caption_table("Number of invasive pneumococcal disease notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_vaccine %>% 
+  f_table_phess(condition_name = "IPD")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All invasive pneumococcal disease notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- The management of invasive pneumococcal disease transitioned from the Victorian Department of Health to Local Public Health Units on 15/08/2022.
+:::
+
+\newpage
+
+## Varicella Zoster
+
+```{r}
+# Figure 10K-7
+f_caption_figure("Number of Varicella Zoster notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_vaccine %>%
+  f_graph_phess_counts(condition_name = "VZV",
+                       y_max          = NA,
+                       y_breaks       = 10,
+                       y_expand       = 2)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- 'Varicella Zoster' includes chickenpox, shingles, and unspecified notifications.
+
+- The following Varicella Zoster notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Inpatients and staff of high-risk healthcare settings (e.g. immunosuppressive wards, neonatal wards, obstetric wards)
+  
+  - Persons known to have exposed high-risk groups (e.g. neonates, pregnant women, immunosuppressed individuals)
+  
+  - Persons linked to an outbreak in a high-risk setting (e.g. healthcare facilities, aged care facilities, childcare facilities, schools)
+
+- The management of Varicella Zoster transitioned from the Victorian Department of Health to Local Public Health Units on 15/08/2022.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-8
+f_caption_figure("Varicella Zoster notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_vaccine %>% 
+  dplyr::filter(condition == "VZV") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 140,
+                      y_breaks   = 20,
+                      y_expand   = 5)
+
+figure_vic <- cases_vaccine %>% 
+  dplyr::filter(condition == "VZV") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 140,
+                      y_breaks   = 20,
+                      y_expand   = 5)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Varicella Zoster' includes chickenpox, shingles, and unspecified notifications.
+
+- The following Varicella Zoster notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Inpatients and staff of high-risk healthcare settings (e.g. immunosuppressive wards, neonatal wards, obstetric wards)
+  
+  - Persons known to have exposed high-risk groups (e.g. neonates, pregnant women, immunosuppressed individuals)
+  
+  - Persons linked to an outbreak in a high-risk setting (e.g. healthcare facilities, aged care facilities, childcare facilities, schools)
+
+- The management of Varicella Zoster transitioned from the Victorian Department of Health to Local Public Health Units on 15/08/2022.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-4
+f_caption_table("Number of Varicella Zoster notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_vaccine %>% 
+  f_table_phess(condition_name = "VZV")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Varicella Zoster' includes chickenpox, shingles, and unspecified notifications.
+
+- The following Varicella Zoster notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Inpatients and staff of high-risk healthcare settings (e.g. immunosuppressive wards, neonatal wards, obstetric wards)
+  
+  - Persons known to have exposed high-risk groups (e.g. neonates, pregnant women, immunosuppressed individuals)
+  
+  - Persons linked to an outbreak in a high-risk setting (e.g. healthcare facilities, aged care facilities, childcare facilities, schools)
+
+- The management of Varicella Zoster transitioned from the Victorian Department of Health to Local Public Health Units on 15/08/2022.
+:::
+
+\newpage
+
+# Bloodborne Viruses
+
+```{r, include = FALSE}
+# ---------------------------------------------------------------------------------
+# Notifiable conditions: BBV and STI
+# Data from PHESS
+# ---------------------------------------------------------------------------------
+conditions_bbv_sti <- c("Chlamydia", "Gonococcal", "Mpox", "Syphilis - Congenital",
+                        "Syphilis - Infectious", "Syphilis - Late", "HBV", "HCV", "HIV")
+
+cases_bbvsti <- cases_all %>% 
+  dplyr::mutate(condition = dplyr::case_when(
+    condition == "Chlamydia trachomatis infection" ~ "Chlamydia",
+    condition == "Gonococcal infection"            ~ "Gonococcal",
+    condition == "Hepatitis B - Newly acquired"    ~ "HBV",
+    condition == "Hepatitis B - Unspecified"       ~ "HBV",
+    condition == "Hepatitis C - <24 months of age" ~ "HCV",
+    condition == "Hepatitis C - Newly acquired"    ~ "HCV",
+    condition == "Hepatitis C - Unspecified"       ~ "HCV",
+    #
+    condition == "Human Immunodeficiency Virus Infection - Child aged less than 18 months"     ~ "HIV",
+    condition == "Human Immunodeficiency Virus Infection - Individual aged 18 months or older" ~ "HIV",
+    TRUE ~ condition)) %>% 
+  #
+  f_wrangle_phess(conditions_list = conditions_bbv_sti)
+```
+
+::: {custom-style="Dotpt"}
+- Data for these indicators were obtained from the Victorian Public Health Surveillance System.
+
+- Data presented here are for notifications where Aboriginal and/or Torres Strait Islander status was known. The completeness of data on Aboriginal and/or Torres Strait Islander status varies across conditions and over time.
+
+- Data broken down by Aboriginal and/or Torres Strait Islander status are publicly available for a selection of conditions at statewide level. Additional data may be made available upon request to the Victorian Department of Health.
+
+- The number and rate of hepatitis B notifications decreased for Aboriginal and/or Torres Strait Islander people during the COVID-19 pandemic and have not rebounded to pre-pandemic levels. Since the COVID-19 pandemic, notification rates have been consistently lower for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people for both the NEPHU catchment and Victoria.
+
+- The number and rate of hepatitis C notifications decreased for Aboriginal and/or Torres Strait Islander people during the COVID-19 pandemic and have since rebounded to pre-pandemic levels. Notification rates were consistently higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people for both the NEPHU catchment and Victoria.
+
+- The number and rate of HIV notifications decreased for Aboriginal and/or Torres Strait Islander people during the COVID-19 pandemic and have since increased but remain lower than pre-pandemic levels. Notification rates were consistently higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people for both the NEPHU catchment and Victoria.
+:::
+
+\newpage
+
+## Hepatitis B
+
+```{r}
+# Figure 10K-9
+f_caption_figure("Number of hepatitis B notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_bbvsti %>%
+  f_graph_phess_counts(condition_name = "HBV",
+                       y_max          = NA,
+                       y_breaks       = 1,
+                       y_expand       = 0.25)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- 'Hepatitis B' includes newly acquired and unspecified notifications.
+
+- The following hepatitis B notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <24 months
+  
+  - Persons with potential newly acquired infections
+  
+  - Persons with potential occult infections 
+  
+  - Persons with potential false positive laboratory results
+  
+  - Persons undergoing screening for onshore visa renewal or offshore health undertaking
+  
+  - Persons known to have high-risk exposures (e.g. medical procedures, blood transfusion, tattooing) or work in high-risk settings (e.g. healthcare workers)
+  
+  - Women known to be pregnant or undergoing IVF
+  
+- The management of hepatitis B transitioned from the Victorian Department of Health to Local Public Health Units on 29/08/2022.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-10
+f_caption_figure("Hepatitis B notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_bbvsti %>% 
+  dplyr::filter(condition == "HBV") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 25,
+                      y_breaks   = 5,
+                      y_expand   = 0.5)
+
+figure_vic <- cases_bbvsti %>% 
+  dplyr::filter(condition == "HBV") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 25,
+                      y_breaks   = 5,
+                      y_expand   = 0.5)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Hepatitis B' includes newly acquired and unspecified notifications.
+
+- The following hepatitis B notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <24 months
+  
+  - Persons with potential newly acquired infections
+  
+  - Persons with potential occult infections 
+  
+  - Persons with potential false positive laboratory results
+  
+  - Persons undergoing screening for onshore visa renewal or offshore health undertaking
+  
+  - Persons known to have high-risk exposures (e.g. medical procedures, blood transfusion, tattooing) or work in high-risk settings (e.g. healthcare workers)
+  
+  - Women known to be pregnant or undergoing IVF
+  
+- The management of hepatitis B transitioned from the Victorian Department of Health to Local Public Health Units on 29/08/2022.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-5
+f_caption_table("Number of hepatitis B notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_bbvsti %>% 
+  f_table_phess(condition_name = "HBV")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Hepatitis B' includes newly acquired and unspecified notifications.
+
+- The following hepatitis B notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <24 months
+  
+  - Persons with potential newly acquired infections
+  
+  - Persons with potential occult infections 
+  
+  - Persons with potential false positive laboratory results
+  
+  - Persons undergoing screening for onshore visa renewal or offshore health undertaking
+  
+  - Persons known to have high-risk exposures (e.g. medical procedures, blood transfusion, tattooing) or work in high-risk settings (e.g. healthcare workers)
+  
+  - Women known to be pregnant or undergoing IVF
+  
+- The management of hepatitis B transitioned from the Victorian Department of Health to Local Public Health Units on 29/08/2022.
+:::
+
+\newpage
+
+## Hepatitis C
+
+```{r}
+# Figure 10K-11
+f_caption_figure("Number of hepatitis C notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_bbvsti %>%
+  f_graph_phess_counts(condition_name = "HCV",
+                       y_max          = NA,
+                       y_breaks       = 20,
+                       y_expand       = 2)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- 'Hepatitis C' includes newly acquired and unspecified notifications.
+
+- The following hepatitis C notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <16 years
+  
+  - Persons with potential newly acquired infections
+  
+  - Persons with potential occult infections 
+  
+  - Persons with potential false positive laboratory results
+  
+  - Persons undergoing screening for onshore visa renewal or offshore health undertaking
+  
+  - Persons known to have high-risk exposures (e.g. medical procedures, blood transfusion, tattooing) or work in high-risk settings (e.g. healthcare workers)
+  
+  - Women known to be pregnant or undergoing IVF
+
+- The management of hepatitis C transitioned from the Victorian Department of Health to Local Public Health Units on 05/09/2022.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-12
+f_caption_figure("Hepatitis C notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_bbvsti %>% 
+  dplyr::filter(condition == "HCV") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 200,
+                      y_breaks   = 20,
+                      y_expand   = 5)
+
+figure_vic <- cases_bbvsti %>% 
+  dplyr::filter(condition == "HCV") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 200,
+                      y_breaks   = 20,
+                      y_expand   = 5)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Hepatitis C' includes newly acquired and unspecified notifications.
+
+- The following hepatitis C notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <16 years
+  
+  - Persons with potential newly acquired infections
+  
+  - Persons with potential occult infections 
+  
+  - Persons with potential false positive laboratory results
+  
+  - Persons undergoing screening for onshore visa renewal or offshore health undertaking
+  
+  - Persons known to have high-risk exposures (e.g. medical procedures, blood transfusion, tattooing) or work in high-risk settings (e.g. healthcare workers)
+  
+  - Women known to be pregnant or undergoing IVF
+
+- The management of hepatitis C transitioned from the Victorian Department of Health to Local Public Health Units on 05/09/2022.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-6
+f_caption_table("Number of hepatitis C notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_bbvsti %>% 
+  f_table_phess(condition_name = "HCV")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Hepatitis C' includes newly acquired and unspecified notifications.
+
+- The following hepatitis C notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <16 years
+  
+  - Persons with potential newly acquired infections
+  
+  - Persons with potential occult infections 
+  
+  - Persons with potential false positive laboratory results
+  
+  - Persons undergoing screening for onshore visa renewal or offshore health undertaking
+  
+  - Persons known to have high-risk exposures (e.g. medical procedures, blood transfusion, tattooing) or work in high-risk settings (e.g. healthcare workers)
+  
+  - Women known to be pregnant or undergoing IVF
+
+- The management of hepatitis C transitioned from the Victorian Department of Health to Local Public Health Units on 05/09/2022.
+:::
+
+\newpage
+
+## Human Immunodeficiency Virus (HIV)
+
+```{r}
+# Figure 10K-13
+f_caption_figure("Number of HIV notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_bbvsti %>%
+  f_graph_phess_counts(condition_name = "HIV",
+                       y_max          = NA,
+                       y_breaks       = 1,
+                       y_expand       = 0.25)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- All HIV notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- The management of HIV transitioned from the Victorian Department of Health to Local Public Health Units on 09/08/2023.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-14
+f_caption_figure("HIV notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_bbvsti %>% 
+  dplyr::filter(condition == "HIV") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 18,
+                      y_breaks   = 2,
+                      y_expand   = 0.5)
+
+figure_vic <- cases_bbvsti %>% 
+  dplyr::filter(condition == "HIV") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 18,
+                      y_breaks   = 2,
+                      y_expand   = 0.5)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- All HIV notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- The management of HIV transitioned from the Victorian Department of Health to Local Public Health Units on 09/08/2023.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-7
+f_caption_table("Number of HIV notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_bbvsti %>% 
+  f_table_phess(condition_name = "HIV")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- All HIV notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- The management of HIV transitioned from the Victorian Department of Health to Local Public Health Units on 09/08/2023.
+:::
+
+\newpage
+
+# Sexually Transmissible Infections
+
+::: {custom-style="Dotpt"}
+- Data for these indicators were obtained from the Victorian Public Health Surveillance System.
+
+- Data presented here are for notifications where Aboriginal and/or Torres Strait Islander status was known. The completeness of data on Aboriginal and/or Torres Strait Islander status varies across conditions and over time.
+
+- Data broken down by Aboriginal and/or Torres Strait Islander status are publicly available for a selection of conditions at statewide level. Additional data may be made available upon request to the Victorian Department of Health.
+
+- The number and rate of gonorrhoea notifications decreased for Aboriginal and/or Torres Strait Islander people during the COVID-19 pandemic and have since rebounded to higher than pre-pandemic levels. Notification rates were consistently higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people for both the NEPHU catchment and Victoria.
+
+- The number and rate of infectious syphilis notifications decreased for Aboriginal and/or Torres Strait Islander people during the COVID-19 pandemic and have since rebounded to higher than pre-pandemic levels. Notification rates were consistently higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people for both the NEPHU catchment and Victoria.
+
+- The number and rate of late syphilis notifications decreased for Aboriginal and/or Torres Strait Islander people during the COVID-19 pandemic and have since rebounded to higher than pre-pandemic levels. Notification rates were consistently higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people for both the NEPHU catchment and Victoria.
+
+- The most recent notification for congenital syphilis for an Aboriginal and/or Torres Strait Islander resident of the NEPHU catchment was in 2020. For Victoria overall, notification rates were consistently higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people.
+:::
+
+\newpage
+
+## Gonorrhoea
+
+```{r}
+# Figure 10K-15
+f_caption_figure("Number of gonorrhoea notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_bbvsti %>%
+  f_graph_phess_counts(condition_name = "Gonococcal",
+                       y_max          = NA,
+                       y_breaks       = 20,
+                       y_expand       = 20)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- The following gonorrhoea notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <16 years
+
+  - Women known to be pregnant
+  
+  - Persons with decreased susceptibility to ceftriaxone, critical antimicrobial resistant, or extensively drug resistant gonorrhoea
+  
+- The management of gonorrhoea transitioned from the Victorian Department of Health to Local Public Health Units on 30/01/2023.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-16
+f_caption_figure("Gonorrhoea notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_bbvsti %>% 
+  dplyr::filter(condition == "Gonococcal") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 275,
+                      y_breaks   = 25,
+                      y_expand   = 5)
+
+figure_vic <- cases_bbvsti %>% 
+  dplyr::filter(condition == "Gonococcal") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 275,
+                      y_breaks   = 25,
+                      y_expand   = 5)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- The following gonorrhoea notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <16 years
+
+  - Women known to be pregnant
+  
+  - Persons with decreased susceptibility to ceftriaxone, critical antimicrobial resistant, or extensively drug resistant gonorrhoea
+  
+- The management of gonorrhoea transitioned from the Victorian Department of Health to Local Public Health Units on 30/01/2023.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-8
+f_caption_table("Number of gonorrhoea notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_bbvsti %>% 
+  f_table_phess(condition_name = "Gonococcal")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- The following gonorrhoea notifications are signed out for case management and follow-up by Local Public Health Units:
+
+  - Children aged <16 years
+
+  - Women known to be pregnant
+  
+  - Persons with decreased susceptibility to ceftriaxone, critical antimicrobial resistant, or extensively drug resistant gonorrhoea
+  
+- The management of gonorrhoea transitioned from the Victorian Department of Health to Local Public Health Units on 30/01/2023.
+:::
+
+\newpage
+
+## Infectious Syphilis
+
+```{r}
+# Figure 10K-17
+f_caption_figure("Number of infectious syphilis notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_bbvsti %>%
+  f_graph_phess_counts(condition_name = "Syphilis - Infectious",
+                       y_max          = NA,
+                       y_breaks       = 10,
+                       y_expand       = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- 'Infectious syphilis' is defined as syphilis of less than two years duration.
+
+- All syphilis notifications are signed out for case management and follow-up by Local Public Health Units, with the following groups prioritised for follow-up:
+
+  - Women known to be pregnant
+  
+  - Suspected, confirmed, or probable cases of congenital syphilis
+
+  - Children aged <16 years
+  
+  - Women of reproductive age (aged 15-49 years)
+  
+  - Aboriginal and/or Torres Strait Islander people
+  
+  - Partners of cases who are known to be pregnant
+
+- The management of syphilis transitioned from the Victorian Department of Health to Local Public Health Units on 03/04/2023.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-18
+f_caption_figure("Infectious syphilis notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_bbvsti %>% 
+  dplyr::filter(condition == "Syphilis - Infectious") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 120,
+                      y_breaks   = 20,
+                      y_expand   = 5)
+
+figure_vic <- cases_bbvsti %>% 
+  dplyr::filter(condition == "Syphilis - Infectious") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 120,
+                      y_breaks   = 20,
+                      y_expand   = 5)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Infectious syphilis' is defined as syphilis of less than two years duration.
+
+- All syphilis notifications are signed out for case management and follow-up by Local Public Health Units, with the following groups prioritised for follow-up:
+
+  - Women known to be pregnant
+  
+  - Suspected, confirmed, or probable cases of congenital syphilis
+
+  - Children aged <16 years
+  
+  - Women of reproductive age (aged 15-49 years)
+  
+  - Aboriginal and/or Torres Strait Islander people
+  
+  - Partners of cases who are known to be pregnant
+
+- The management of syphilis transitioned from the Victorian Department of Health to Local Public Health Units on 03/04/2023.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-9
+f_caption_table("Number of infectious syphilis notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_bbvsti %>% 
+  f_table_phess(condition_name = "Syphilis - Infectious")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Infectious syphilis' is defined as syphilis of less than two years duration.
+
+- All syphilis notifications are signed out for case management and follow-up by Local Public Health Units, with the following groups prioritised for follow-up:
+
+  - Women known to be pregnant
+  
+  - Suspected, confirmed, or probable cases of congenital syphilis
+
+  - Children aged <16 years
+  
+  - Women of reproductive age (aged 15-49 years)
+  
+  - Aboriginal and/or Torres Strait Islander people
+  
+  - Partners of cases who are known to be pregnant
+
+- The management of syphilis transitioned from the Victorian Department of Health to Local Public Health Units on 03/04/2023.
+:::
+
+\newpage
+
+## Late Syphilis
+
+```{r}
+# Figure 10K-19
+f_caption_figure("Number of late syphilis notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_bbvsti %>%
+  f_graph_phess_counts(condition_name = "Syphilis - Late",
+                       y_max          = NA,
+                       y_breaks       = 5,
+                       y_expand       = 2)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- 'Late syphilis' is defined as syphilis of more than two years or unknown duration.
+
+- All syphilis notifications are signed out for case management and follow-up by Local Public Health Units, with the following groups prioritised for follow-up:
+
+  - Women known to be pregnant
+  
+  - Suspected, confirmed, or probable cases of congenital syphilis
+
+  - Children aged <16 years
+  
+  - Women of reproductive age (aged 15-49 years)
+  
+  - Aboriginal and/or Torres Strait Islander people
+  
+  - Partners of cases who are known to be pregnant
+
+- The management of syphilis transitioned from the Victorian Department of Health to Local Public Health Units on 03/04/2023.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-20
+f_caption_figure("Late syphilis notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_bbvsti %>% 
+  dplyr::filter(condition == "Syphilis - Late") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 60,
+                      y_breaks   = 10,
+                      y_expand   = 2)
+
+figure_vic <- cases_bbvsti %>% 
+  dplyr::filter(condition == "Syphilis - Late") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 60,
+                      y_breaks   = 10,
+                      y_expand   = 2)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Late syphilis' is defined as syphilis of more than two years or unknown duration.
+
+- All syphilis notifications are signed out for case management and follow-up by Local Public Health Units, with the following groups prioritised for follow-up:
+
+  - Women known to be pregnant
+  
+  - Suspected, confirmed, or probable cases of congenital syphilis
+
+  - Children aged <16 years
+  
+  - Women of reproductive age (aged 15-49 years)
+  
+  - Aboriginal and/or Torres Strait Islander people
+  
+  - Partners of cases who are known to be pregnant
+
+- The management of syphilis transitioned from the Victorian Department of Health to Local Public Health Units on 03/04/2023.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-10
+f_caption_table("Number of late syphilis notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_bbvsti %>% 
+  f_table_phess(condition_name = "Syphilis - Late")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- 'Late syphilis' is defined as syphilis of more than two years or unknown duration.
+
+- All syphilis notifications are signed out for case management and follow-up by Local Public Health Units, with the following groups prioritised for follow-up:
+
+  - Women known to be pregnant
+  
+  - Suspected, confirmed, or probable cases of congenital syphilis
+
+  - Children aged <16 years
+  
+  - Women of reproductive age (aged 15-49 years)
+  
+  - Aboriginal and/or Torres Strait Islander people
+  
+  - Partners of cases who are known to be pregnant
+
+- The management of syphilis transitioned from the Victorian Department of Health to Local Public Health Units on 03/04/2023.
+:::
+
+\newpage
+
+## Congenital Syphilis
+
+```{r}
+# Figure 10K-21
+f_caption_figure("Number of congenital syphilis notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_bbvsti %>%
+  f_graph_phess_counts(condition_name = "Syphilis - Congenital",
+                       y_max          = 5,
+                       y_breaks       = 1,
+                       y_expand       = 0.25)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- All syphilis notifications are signed out for case management and follow-up by Local Public Health Units, with the following groups prioritised for follow-up:
+
+  - Women known to be pregnant
+  
+  - Suspected, confirmed, or probable cases of congenital syphilis
+
+  - Children aged <16 years
+  
+  - Women of reproductive age (aged 15-49 years)
+  
+  - Aboriginal and/or Torres Strait Islander people
+  
+  - Partners of cases who are known to be pregnant
+
+- The management of syphilis transitioned from the Victorian Department of Health to Local Public Health Units on 03/04/2023.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-22
+f_caption_figure("Congenital syphilis notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_bbvsti %>% 
+  dplyr::filter(condition == "Syphilis - Congenital") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 10,
+                      y_breaks   = 1,
+                      y_expand   = 0.25)
+
+figure_vic <- cases_bbvsti %>% 
+  dplyr::filter(condition == "Syphilis - Congenital") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 10,
+                      y_breaks   = 1,
+                      y_expand   = 0.25)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All syphilis notifications are signed out for case management and follow-up by Local Public Health Units, with the following groups prioritised for follow-up:
+
+  - Women known to be pregnant
+  
+  - Suspected, confirmed, or probable cases of congenital syphilis
+
+  - Children aged <16 years
+  
+  - Women of reproductive age (aged 15-49 years)
+  
+  - Aboriginal and/or Torres Strait Islander people
+  
+  - Partners of cases who are known to be pregnant
+
+- The management of syphilis transitioned from the Victorian Department of Health to Local Public Health Units on 03/04/2023.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-11
+f_caption_table("Number of congenital syphilis notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_bbvsti %>% 
+  f_table_phess(condition_name = "Syphilis - Congenital") %>% 
+  #
+  flextable::colformat_double(j = c(3, 5, 7, 9),
+                              digits = 2)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All syphilis notifications are signed out for case management and follow-up by Local Public Health Units, with the following groups prioritised for follow-up:
+
+  - Women known to be pregnant
+  
+  - Suspected, confirmed, or probable cases of congenital syphilis
+
+  - Children aged <16 years
+  
+  - Women of reproductive age (aged 15-49 years)
+  
+  - Aboriginal and/or Torres Strait Islander people
+  
+  - Partners of cases who are known to be pregnant
+
+- The management of syphilis transitioned from the Victorian Department of Health to Local Public Health Units on 03/04/2023.
+:::
+
+\newpage
+
+# Other Conditions
+
+```{r, include = FALSE}
+# ---------------------------------------------------------------------------------
+# Notifiable conditions: other conditions
+# Data from PHESS
+# ---------------------------------------------------------------------------------
+conditions_other <- c("ARF", "iGAS", "Legionellosis", "RHD")
+
+cases_other <- cases_all %>% 
+  dplyr::mutate(condition = dplyr::case_when(
+    condition == "Acute Rheumatic Fever"          ~ "ARF",
+    condition == "Invasive Group A Streptococcus" ~ "iGAS",
+    condition == "Rheumatic Heart Disease"        ~ "RHD",
+    TRUE ~ condition)) %>% 
+  #
+  f_wrangle_phess(conditions_list = conditions_other)
+```
+
+::: {custom-style="Dotpt"}
+- Data for these indicators were obtained from the Victorian Public Health Surveillance System.
+
+- Data presented here are for notifications where Aboriginal and/or Torres Strait Islander status was known. The completeness of data on Aboriginal and/or Torres Strait Islander status varies across conditions and over time.
+
+- Data broken down by Aboriginal and/or Torres Strait Islander status are publicly available for a selection of conditions at statewide level. Additional data may be made available upon request to the Victorian Department of Health.
+
+- Invasive Group A *Streptococcus* became notifiable in Victoria in February 2022. Notification rates were higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people for both the NEPHU catchment and Victoria.
+
+- There have been no notifications of acute rheumatic fever in Aboriginal and/or Torres Strait Islander residents of the NEPHU catchment since it became notifiable in Victoria in July 2023. Notification rates were higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people for Victoria overall.
+
+- There have been no notifications of rheumatic heart disease in Aboriginal and/or Torres Strait Islander residents of the NEPHU catchment since it became notifiable in Victoria in July 2023. Notification rates were higher for Aboriginal and/or Torres Strait Islander people compared to non-Indigenous people for Victoria overall.
+:::
+
+\newpage
+
+## Invasive Group A Streptococcus (iGAS)
+
+```{r}
+# Figure 10K-23
+f_caption_figure("Number of invasive Group A Streptococcus notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_other %>%
+  f_graph_phess_counts(condition_name = "iGAS",
+                       y_max          = NA,
+                       y_breaks       = 1,
+                       y_expand       = 0.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- All invasive Group A *Streptococcus* notifications are signed out for urgent case management and follow-up by Local Public Health Units.
+
+- Invasive Group A *Streptococcus* became a notifiable condition in Victoria on 22/02/2022 and the management of notifications transitioned from the Victorian Department of Health to Local Public Health Units on 31/05/2023.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-24
+f_caption_figure("Invasive Group A Streptococcus notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_other %>% 
+  dplyr::filter(condition == "iGAS") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 20,
+                      y_breaks   = 2,
+                      y_expand   = 1)
+
+figure_vic <- cases_other %>% 
+  dplyr::filter(condition == "iGAS") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 20,
+                      y_breaks   = 2,
+                      y_expand   = 1)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All invasive Group A *Streptococcus* notifications are signed out for urgent case management and follow-up by Local Public Health Units.
+
+- Invasive Group A *Streptococcus* became a notifiable condition in Victoria on 22/02/2022 and the management of notifications transitioned from the Victorian Department of Health to Local Public Health Units on 31/05/2023.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-12
+f_caption_table("Number of invasive Group A Streptococcus notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_other %>% 
+  f_table_phess(condition_name = "iGAS")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All invasive Group A *Streptococcus* notifications are signed out for urgent case management and follow-up by Local Public Health Units.
+
+- Invasive Group A *Streptococcus* became a notifiable condition in Victoria on 22/02/2022 and the management of notifications transitioned from the Victorian Department of Health to Local Public Health Units on 31/05/2023.
+:::
+
+\newpage
+
+## Acute Rheumatic Fever
+
+```{r}
+# Figure 10K-25
+f_caption_figure("Number of acute rheumatic fever notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_other %>%
+  f_graph_phess_counts(condition_name = "ARF",
+                       y_max          = 5,
+                       y_breaks       = 1,
+                       y_expand       = 0.25)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- All acute rheumatic fever notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- Acute rheumatic fever became a notifiable condition in Victoria on 31/07/2023 and the management of notifications transitioned from the Victorian Department of Health to Local Public Health Units on 02/08/2023.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-26
+f_caption_figure("Acute rheumatic fever notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_other %>% 
+  dplyr::filter(condition == "ARF") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 7,
+                      y_breaks   = 1,
+                      y_expand   = 0.1)
+
+figure_vic <- cases_other %>% 
+  dplyr::filter(condition == "ARF") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 7,
+                      y_breaks   = 1,
+                      y_expand   = 0.1)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All acute rheumatic fever notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- Acute rheumatic fever became a notifiable condition in Victoria on 31/07/2023 and the management of notifications transitioned from the Victorian Department of Health to Local Public Health Units on 02/08/2023.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-13
+f_caption_table("Number of acute rheumatic fever notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_other %>% 
+  f_table_phess(condition_name = "ARF")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All acute rheumatic fever notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- Acute rheumatic fever became a notifiable condition in Victoria on 31/07/2023 and the management of notifications transitioned from the Victorian Department of Health to Local Public Health Units on 02/08/2023.
+:::
+
+\newpage
+
+## Rheumatic Heart Disease
+
+```{r}
+# Figure 10K-27
+f_caption_figure("Number of rheumatic heart disease notifications for Aboriginal and/or Torres Strait Islander people, Victoria, by year")
+
+cases_other %>%
+  f_graph_phess_counts(condition_name = "RHD",
+                       y_max          = 5,
+                       y_breaks       = 1,
+                       y_expand       = 0.25)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+- All rheumatic heart disease notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- Rheumatic heart disease became a notifiable condition in Victoria on 31/07/2023 and the management of notifications transitioned from the Victorian Department of Health to Local Public Health Units on 02/08/2023.
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-28
+f_caption_figure("Rheumatic heart disease notification rate for (A) NEPHU and (B) Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+figure_nephu <- cases_other %>% 
+  dplyr::filter(condition == "RHD") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "A",
+                      y_variable = nephu_rate,
+                      y_max      = 5,
+                      y_breaks   = 1,
+                      y_expand   = 0.25)
+
+figure_vic <- cases_other %>% 
+  dplyr::filter(condition == "RHD") %>% 
+  #
+  f_graph_phess_rates(plot_tag   = "B",
+                      y_variable = vic_rate,
+                      y_max      = 5,
+                      y_breaks   = 1,
+                      y_expand   = 0.25)
+
+figure_nephu + figure_vic + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All rheumatic heart disease notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- Rheumatic heart disease became a notifiable condition in Victoria on 31/07/2023 and the management of notifications transitioned from the Victorian Department of Health to Local Public Health Units on 02/08/2023.
+:::
+
+\newpage
+
+```{r}
+# Table 10K-14
+f_caption_table("Number of rheumatic heart disease notifications and notification rate, NEPHU and Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+cases_other %>% 
+  f_table_phess(condition_name = "RHD")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phess)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_notifiable_decrease)`
+
+`r knitr::asis_output(note_caveat_notifiable_rate)`
+
+- All rheumatic heart disease notifications are signed out for case management and follow-up by Local Public Health Units.
+
+- Rheumatic heart disease became a notifiable condition in Victoria on 31/07/2023 and the management of notifications transitioned from the Victorian Department of Health to Local Public Health Units on 02/08/2023.
+:::
+
+\newpage
+
+# Hospital Admissions
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - infectious and parasitic diseases
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_infectious <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_diag",
+                                                  column_select = "admissions_for_infectious_and_parasitic_diseases_aboriginal_people")
+
+# Data wrangling
+hospital_infectious <- hospital_infectious %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_infectious %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 1,090 hospital admissions for infectious and parasitic diseases for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 129 (Northcote/Preston/Whittlesea IARE) to 10 (Whitehorse IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 1,306 per 100,000 population (Melbourne/Port Phillip IARE) to 326 per 100,000 population (Melbourne East IARE).
+
+- 6 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Knox, Craigieburn/Sunbury, Moreland/Broadmeadows, Melbourne North-East, and Northcote/Preston/Whittlesea IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-29
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for infectious and parasitic diseases for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_infectious %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 20,
+               y_expand   = 15,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_infectious %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 200,
+               y_expand   = 125,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Admissions for 'infectious and parasitic diseases' are defined as those with a principal diagnosis code between A00-B99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - A00-A09: Intestinal infectious diseases
+    
+    - A15-A19: Tuberculosis
+    
+    - A20-A28: Certain zoonotic bacterial diseases
+    
+    - A30-A49: Other bacterial diseases
+    
+    - A50-A64: Infections with a predominantly sexual mode of transmission
+    
+    - A65-A69: Other spirochaetal diseases
+    
+    - A70-A74: Other diseases caused by chlamydiae
+    
+    - A75-A79: Rickettsioses
+    
+    - A80-A89: Viral infections of the central nervous system
+    
+    - A92-A99: Arthropod-borne viral fevers and viral haemorrhagic fevers
+    
+    - B00-B09: Viral infections characterized by skin and mucous membrane lesions
+    
+    - B15-B19: Viral hepatitis
+    
+    - B20-B24: Human immunodeficiency virus
+    
+    - B25-B34: Other viral diseases
+    
+    - B35-B49: Mycoses
+    
+    - B50-B64: Protozoal diseases
+    
+    - B65-B83: Helminthiases
+    
+    - B85-B89: Pediculosis, acariasis, and other infestations
+    
+    - B90-B94: Sequelae of infectious and parasitic diseases
+    
+    - B95-B98: Bacterial, viral, and other infectious agents
+    
+    - B99: Other and unspecified infectious diseases
+:::
+
+```{r}
+# Table 10K-15
+f_caption_table("Hospital admissions for infectious and parasitic diseases for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_infectious %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Admissions for 'infectious and parasitic diseases' are defined as those with a principal diagnosis code between A00-B99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - A00-A09: Intestinal infectious diseases
+    
+    - A15-A19: Tuberculosis
+    
+    - A20-A28: Certain zoonotic bacterial diseases
+    
+    - A30-A49: Other bacterial diseases
+    
+    - A50-A64: Infections with a predominantly sexual mode of transmission
+    
+    - A65-A69: Other spirochaetal diseases
+    
+    - A70-A74: Other diseases caused by chlamydiae
+    
+    - A75-A79: Rickettsioses
+    
+    - A80-A89: Viral infections of the central nervous system
+    
+    - A92-A99: Arthropod-borne viral fevers and viral haemorrhagic fevers
+    
+    - B00-B09: Viral infections characterized by skin and mucous membrane lesions
+    
+    - B15-B19: Viral hepatitis
+    
+    - B20-B24: Human immunodeficiency virus
+    
+    - B25-B34: Other viral diseases
+    
+    - B35-B49: Mycoses
+    
+    - B50-B64: Protozoal diseases
+    
+    - B65-B83: Helminthiases
+    
+    - B85-B89: Pediculosis, acariasis, and other infestations
+    
+    - B90-B94: Sequelae of infectious and parasitic diseases
+    
+    - B95-B98: Bacterial, viral, and other infectious agents
+    
+    - B99: Other and unspecified infectious diseases
+:::
+
+\newpage
+
+# Emergency Presentations
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Emergency presentations - infectious and parasitic diseases
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+emergency_infectious <- f_read_phidu_iare_hospital(data_sheet    = "ED_total",
+                                                   column_select = "emergency_department_presentations_total_presentations_for_certain_infectious_and_parasitic_diseases_aboriginal_people")
+
+# Data wrangling
+emergency_infectious <- emergency_infectious %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- emergency_infectious %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the AIHW National Non-Admitted Patient Emergency Department Care Database.
+
+- Between 01 July 2019 and 30 June 2020 there were 812 emergency department presentations for infectious and parasitic diseases for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 108 (Northcote/Preston/Whittlesea IARE) to 8 (Whitehorse IARE).
+
+- The age-standardised rate of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 3,905 per 100,000 population (Melbourne/Port Phillip IARE) to 1,708 per 100,000 population (Melbourne East IARE).
+
+- 5 of the 10 IAREs in the NEPHU catchment area had an age-standardised presentation rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Melbourne North-East, Maroondah, Northcote/Preston/Whittlesea, and Moreland/Broadmeadows IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10K-30
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of emergency department presentations for infectious and parasitic diseases for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+figure_number <- emergency_infectious %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 20,
+               y_expand   = 15,
+               y_title    = "Number of presentations",
+               plot_tag   = "A")
+
+figure_rate <- emergency_infectious %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 500,
+               y_expand   = 175,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Presentations for 'infectious and parasitic diseases' are defined as those with a principal diagnosis code between A00-B99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - A00-A09: Intestinal infectious diseases
+    
+    - A15-A19: Tuberculosis
+    
+    - A20-A28: Certain zoonotic bacterial diseases
+    
+    - A30-A49: Other bacterial diseases
+    
+    - A50-A64: Infections with a predominantly sexual mode of transmission
+    
+    - A65-A69: Other spirochaetal diseases
+    
+    - A70-A74: Other diseases caused by chlamydiae
+    
+    - A75-A79: Rickettsioses
+    
+    - A80-A89: Viral infections of the central nervous system
+    
+    - A92-A99: Arthropod-borne viral fevers and viral haemorrhagic fevers
+    
+    - B00-B09: Viral infections characterized by skin and mucous membrane lesions
+    
+    - B15-B19: Viral hepatitis
+    
+    - B20-B24: Human immunodeficiency virus
+    
+    - B25-B34: Other viral diseases
+    
+    - B35-B49: Mycoses
+    
+    - B50-B64: Protozoal diseases
+    
+    - B65-B83: Helminthiases
+    
+    - B85-B89: Pediculosis, acariasis, and other infestations
+    
+    - B90-B94: Sequelae of infectious and parasitic diseases
+    
+    - B95-B98: Bacterial, viral, and other infectious agents
+    
+    - B99: Other and unspecified infectious diseases
+:::
+
+```{r}
+# Table 10K-16
+f_caption_table("Emergency department presentations for infectious and parasitic diseases for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+emergency_infectious %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\npresentations", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Presentations for 'infectious and parasitic diseases' are defined as those with a principal diagnosis code between A00-B99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - A00-A09: Intestinal infectious diseases
+    
+    - A15-A19: Tuberculosis
+    
+    - A20-A28: Certain zoonotic bacterial diseases
+    
+    - A30-A49: Other bacterial diseases
+    
+    - A50-A64: Infections with a predominantly sexual mode of transmission
+    
+    - A65-A69: Other spirochaetal diseases
+    
+    - A70-A74: Other diseases caused by chlamydiae
+    
+    - A75-A79: Rickettsioses
+    
+    - A80-A89: Viral infections of the central nervous system
+    
+    - A92-A99: Arthropod-borne viral fevers and viral haemorrhagic fevers
+    
+    - B00-B09: Viral infections characterized by skin and mucous membrane lesions
+    
+    - B15-B19: Viral hepatitis
+    
+    - B20-B24: Human immunodeficiency virus
+    
+    - B25-B34: Other viral diseases
+    
+    - B35-B49: Mycoses
+    
+    - B50-B64: Protozoal diseases
+    
+    - B65-B83: Helminthiases
+    
+    - B85-B89: Pediculosis, acariasis, and other infestations
+    
+    - B90-B94: Sequelae of infectious and parasitic diseases
+    
+    - B95-B98: Bacterial, viral, and other infectious agents
+    
+    - B99: Other and unspecified infectious diseases
+:::
+

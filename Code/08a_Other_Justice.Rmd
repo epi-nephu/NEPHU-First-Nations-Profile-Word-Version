@@ -1,0 +1,335 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Other Determinants of Health: Criminal Justice"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "08A Other Justice ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_line_comparison.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_ctg_target.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_rate_year.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 8A-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 8A-"))
+  
+  return(caption)
+  
+}
+```
+
+### What external factors may influence how Aboriginal and/or Torres Strait Islander people and families in the NEPHU catchment are supported to prioritise health and wellbeing, particularly in connection to caring for children and keeping families strong?
+
+# Adult Incarceration
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 10: By 2031, reduce the rate of Aboriginal and Torres Strait Islander adults held in incarceration by at least 15% (compared to the baseline year of 2019).
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Adult incarceration
+# Data from ABS Prisoners in Australia Dataset
+# ------------------------------------------------------------------------------
+# Read in ABS data
+incarceration_adult <- readxl::read_excel(file.path(root_folder, subfolder_corrective, "Prisoners_In_Australia_State_Data.xlsx"),
+                                          skip  = 4,
+                                          sheet = "Table_18") %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::rename(year = indigenous_status_and_reference_period) %>%
+  #
+  dplyr::mutate(indigenous_status = dplyr::case_when(
+    row_number() %in% 2:12  ~ "aboriginal",
+    row_number() %in% 14:24 ~ "non_aboriginal",
+    TRUE ~ NA_character_)) %>% 
+  #
+  dplyr::filter(!is.na(indigenous_status))
+
+# Data wrangling
+incarceration_adult <- incarceration_adult %>%
+  dplyr::select(year,
+                indigenous_status,
+                rate = vic) %>% 
+  #
+  dplyr::mutate(
+    ctg_target = dplyr::case_when(
+      indigenous_status == "non_aboriginal" ~ NA_real_,
+      TRUE ~ incarceration_adult$vic[7] * 0.85),
+    #
+    ctg_change = dplyr::case_when(
+      indigenous_status == "non_aboriginal" ~ NA_character_,
+      rate >= incarceration_adult$vic[7] * 1.1 ~ "a worsening",
+      rate <  incarceration_adult$vic[7] * 0.9 ~ "an improvement",
+      TRUE ~ "no change"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the ABS Prisoners in Australia Dataset.
+
+- The age-standardised incarceration rate for Aboriginal and/or Torres Strait Islander adults in Victoria was 1,778 per 100,000 population in 2023. This is compared to an age-standardised rate of 110 per 100,000 population for non-Indigenous Victorian adults.
+
+- This rate shows an improvement compared to the 2019 baseline rate.
+:::
+
+```{r}
+# Figure 8A-1
+f_caption_figure("Age-standardised incarceration rate (per 100,000 population) for people aged 18 years and over, Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+incarceration_adult %>% 
+  f_graph_line_comparison(y_variable = rate,
+                          y_max      = NA,
+                          y_breaks   = 200,
+                          y_expand   = 100,
+                          y_title    = "Incarceration rate (per 100,000 population)") %>% 
+  #
+  f_graph_ctg_target(ctg_target = 1797)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_justice_adult)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_ctg_target)`
+
+- The incarceration rate is calculated as the total number of incarcerations per 100,000 population as estimated by the [ABS Estimated Residential Population (ERP)](https://www.abs.gov.au/statistics/people/population/population-projections-australia/2022-base-2071) for the year. ERP calculations take into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census.
+
+- The incarceration rate has been age-standardised to account for the differences in age structures between the Aboriginal and/or Torres Strait Islander and non-Indigenous populations. 
+:::
+
+```{r}
+# Table 8A-1
+f_caption_table("Age-standardised incarceration rate (per 100,000 population) for people aged 18 years and over, Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+incarceration_adult %>% 
+  dplyr::select(year,
+                indigenous_status,
+                rate) %>% 
+  #
+  dplyr::mutate(rate = round(rate, digits = 0)) %>% 
+  #
+  tidyr::pivot_wider(names_from  = indigenous_status,
+                     values_from = rate) %>% 
+  #
+  f_table_rate_year() %>% 
+  #
+  flextable::set_header_labels(values = c("Year", "Yes\n(rate per 100,000)", "No\n(rate per 100,000)"))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_justice_adult)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The incarceration rate is calculated as the total number of incarcerations per 100,000 population as estimated by the [ABS Estimated Residential Population (ERP)](https://www.abs.gov.au/statistics/people/population/population-projections-australia/2022-base-2071) for the year. ERP calculations take into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census.
+
+- The incarceration rate has been age-standardised to account for the differences in age structures between the Aboriginal and/or Torres Strait Islander and non-Indigenous populations.  
+:::
+
+\newpage
+
+# Youth Detention
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 11: By 2031, reduce the rate of Aboriginal and Torres Strait Islander young people (10–⁠17 years) in detention by at least 30% (compared to the baseline year of 2018-19).
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Youth detention
+# Data from AIHW Youth Justice in Australia Dataset
+# ------------------------------------------------------------------------------
+# Read in AIHW data
+incarceration_youth <- readxl::read_excel(file.path(root_folder, subfolder_corrective, "Youth_Justice_State_Data.xlsx"),
+                                          skip  = 2,
+                                          sheet = "Table S83") %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::filter(row_number() %in% 1:30) %>% 
+  dplyr::filter(indigenous_status != "Total") %>% 
+  #
+  dplyr::mutate(
+    indigenous_status = dplyr::case_when(
+      indigenous_status == "First Nations" ~ "aboriginal",
+      indigenous_status == "Non-Indigenous" ~ "non_aboriginal")) %>% 
+  #
+  tidyr::fill(year) %>% 
+  #
+  dplyr::mutate(across(nsw:australia, as.numeric))
+
+# Data wrangling
+incarceration_youth <- incarceration_youth %>%
+  dplyr::select(year,
+                indigenous_status,
+                rate = vic) %>%
+  #
+  dplyr::mutate(
+    ctg_target = dplyr::case_when(
+      indigenous_status == "non_aboriginal" ~ NA_real_,
+      TRUE ~ incarceration_youth$vic[11] * 0.7),
+    #
+    ctg_change = dplyr::case_when(
+      indigenous_status == "non_aboriginal" ~ NA_character_,
+      rate >= incarceration_youth$vic[11] * 1.1 ~ "a worsening",
+      rate <  incarceration_youth$vic[11] * 0.9 ~ "an improvement",
+      TRUE ~ "no change"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the AIHW Youth Justice National Minimum Dataset.
+
+- The detention rate for Aboriginal and/or Torres Strait Islander young people in Victoria on an average day was 9.1 per 10,000 population in 2022-23. This is compared to 1.0 per 10,000 for non-Indigenous young Victorians.
+
+- This rate shows an improvement compared to the 2018-19 baseline rate.
+:::
+
+```{r}
+# Figure 8A-2
+f_caption_figure("Detention rate (per 10,000 population) on an average day for people aged 10-17 years, Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+incarceration_youth %>% 
+  f_graph_line_comparison(y_variable = rate,
+                          y_max      = NA,
+                          y_breaks   = 2,
+                          y_expand   = 2,
+                          y_title    = "Detention rate (per 10,000 population)") %>% 
+  #
+  f_graph_ctg_target(ctg_target = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_justice_youth)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_ctg_target)`
+
+- The detention rate is calculated as the total number of detentions per 10,000 population on an average day as estimated by the [ABS Estimated Residential Population (ERP)](https://www.abs.gov.au/statistics/people/population/population-projections-australia/2022-base-2071) for the year. ERP calculations take into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census. 
+:::
+
+\newpage
+
+```{r}
+# Table 8A-2
+f_caption_table("Detention rate (per 10,000 population) on an average day for people aged 10-17 years, Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+incarceration_youth %>% 
+  dplyr::select(year,
+                indigenous_status,
+                rate) %>% 
+  #
+  dplyr::mutate(rate = round(rate, digits = 1)) %>% 
+  #
+  tidyr::pivot_wider(names_from  = indigenous_status,
+                     values_from = rate) %>% 
+  #
+  f_table_rate_year() %>% 
+  #
+  flextable::set_header_labels(values = c("Year", "Yes\n(rate per 10,000)", "No\n(rate per 10,000)"))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_justice_youth)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The detention rate is calculated as the total number of detentions per 10,000 population on an average day as estimated by the [ABS Estimated Residential Population (ERP)](https://www.abs.gov.au/statistics/people/population/population-projections-australia/2022-base-2071) for the year. ERP calculations take into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census. 
+:::
+

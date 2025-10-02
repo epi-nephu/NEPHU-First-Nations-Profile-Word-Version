@@ -1,0 +1,1215 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Consequences: Mental Health Conditions"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "10J Consequences Mental Health Conditions ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_phidu_iare_hospital.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_agesex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_expected.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_iare.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_expected.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_iare.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 10J-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 10J-"))
+  
+  return(caption)
+  
+}
+```
+
+### What chronic conditions affect Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+# Mental Health Conditions
+
+## Prevalence
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Mental health conditions, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_mental_lga <- f_read_census_lga("Aboriginal_Health_Mental_LGA.csv",
+                                       variable = "mental") %>% 
+  #
+  dplyr::filter(mental != "Not stated")
+
+# Data wrangling
+health_mental_lga <- health_mental_lga %>%
+  #
+  dplyr::mutate(mental = dplyr::case_when(
+    mental == "Has a mental health condition (including depression or anxiety)" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = mental,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Mental health conditions, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_mental_agesex <- f_read_census_agesex("Aboriginal_Health_Mental_AgeSex.csv",
+                                             variable = "mental") %>% 
+  #
+  dplyr::filter(mental != "Not stated")
+
+# Data wrangling
+health_mental_agesex <- health_mental_agesex %>% 
+  #
+  dplyr::mutate(mental = dplyr::case_when(
+    mental == "Has a mental health condition (including depression or anxiety)" ~ "yes",
+    TRUE ~ "no")) %>%  
+  #
+  f_wrangle_census_agesex(variable = mental,
+                          dichot   = "yes")
+```
+
+
+```{r}
+#
+results <- list()
+data    <- health_mental_lga
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the ABS Census 2021.
+
+- Overall, 19% (n = 2,156) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census have been told by a doctor or nurse that they have a mental health condition. This is higher than for non-Indigenous people living in the NEPHU catchment (8.9%).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who have been told by a doctor or nurse that they have a mental health condition ranged from 364 (Whittlesea LGA) to 41 (Manningham LGA).
+
+- The gap between Aboriginal and/or Torres Strait Islander and non-Indigenous people was biggest for Whittlesea and Hume LGAs.
+
+- The percentage of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who have been told by a doctor or nurse that they have a mental health condition ranged from 25% (Yarra LGA) to 13% (Nillumbik LGA).
+
+- The number of people who have been told by a doctor or nurse that they have a mental health condition peaked for people aged 20-29 years, then decreased with increasing age for both genders.
+:::
+
+\newpage
+
+```{r}
+# Figure 10J-1
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who have been told by a doctor or nurse that they have a mental health condition, NEPHU catchment, by LGA, 2021")
+
+figure_number <- health_mental_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 50,
+              y_expand   = 40,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- health_mental_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 25,
+              y_breaks   = 5,
+              y_expand   = 0.5,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Mental health conditions' include depression and anxiety.
+:::
+
+\newpage
+
+```{r}
+# Figure 10J-2
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have a mental health condition, NEPHU catchment, by LGA, 2021")
+
+health_mental_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 50,
+                   y_expand = 40)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Mental health conditions' include depression and anxiety.
+:::
+
+\newpage
+
+```{r}
+# Table 10J-1
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have a mental health condition, NEPHU catchment, by LGA, 2021")
+
+health_mental_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Mental health conditions' include depression and anxiety.
+:::
+
+\newpage
+
+```{r}
+# Figure 10J-3
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who have been told by a doctor or nurse that they have a mental health condition, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- health_mental_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 350,
+                 y_breaks   = 50,
+                 y_expand   = 5,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- health_mental_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 50,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- health_mental_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 350,
+                 y_breaks   = 50,
+                 y_expand   = 5,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- health_mental_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 50,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Mental health conditions' include depression and anxiety.
+:::
+
+\newpage
+
+```{r} 
+# Figure 10J-4
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have a mental health condition, NEPHU catchment, by age and sex, 2021") 
+
+health_mental_agesex %>%  
+  dplyr::filter(age_group %in% age_group_lvl) %>%  
+  # 
+  dplyr::mutate(age_group = factor(age_group, levels = age_group_lvl)) %>% 
+  #
+  f_graph_expected(variable = age_group, 
+                   y_breaks = 50, 
+                   y_expand = 5) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Mental health conditions' include depression and anxiety.
+:::
+
+\newpage
+
+```{r} 
+# Table 10J-2
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have a mental health condition, NEPHU catchment, by age and sex, 2021") 
+
+health_mental_agesex %>% 
+  dplyr::filter(sex == "Female") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Females",
+                   total_row      = 12)
+  
+health_mental_agesex %>% 
+  dplyr::filter(sex == "Male") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Males",
+                   total_row      = 12)
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Mental health conditions' include depression and anxiety.
+:::
+
+\newpage
+
+## Type of Mental Health Condition
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Type of mental health condition
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+mental_type <- f_read_natsihs_sex("Indicator_Vic_Sex_Mental_Type.csv")
+
+# Data wrangling
+mental_type <- mental_type %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = total_n - not_applicable_n) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(substance_n   = harmful_use_or_dependence_on_alcohol_or_drugs_n,
+                behavioural_n = behavioural_or_emotional_problems_n,
+                other_n       = other_mental_health_condition_n) %>% 
+  #
+  dplyr::mutate(across(depression_n:other_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("anxiety"),
+                starts_with("depression"),
+                starts_with("behavioural"),
+                starts_with("substance"),
+                starts_with("other"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 43% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they had been diagnosed with a mental health condition at any point during their life. This equates to approximately 16,700 Aboriginal and/or Torres Strait Islander people.
+
+- Males were more likely than females to have ever been diagnosed with a mental health condition (45% vs. 41%).
+
+- The most commonly reported mental health conditions by Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne were anxiety (84% of survey respondents who had ever been diagnosed with a mental health condition, approximately 14,000 people) and depression (62% of survey respondents who had ever been diagnosed with a mental health condition, approximately 10,300 people).
+
+- Females were more likely to report anxiety (93% vs. 77%) or depression (73% vs. 53%), and males were more likely to report harmful use or dependence on alcohol or other drugs (30% vs. 10%).
+:::
+
+\newpage
+
+```{r}
+# Figure 10J-5
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents who have ever been diagnosed with a mental health condition who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- mental_type %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("anxiety_n", "depression_n", "behavioural_n", 
+                                    "substance_n", "other_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 1000,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Anxiety", "Depression", "Behavioural\nor emotional", 
+                              "Alcohol or\nsubstance misuse", "Other conditions"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- mental_type %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("anxiety_prop", "depression_prop", "behavioural_prop", 
+                                    "substance_prop", "other_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Anxiety", "Depression", "Behavioural\nor emotional", 
+                              "Alcohol or\nsubstance misuse", "Other conditions"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents who had ever been diagnosed with a mental health condition were asked which conditions they had been diagnosed with. Totals may not sum to 100% as respondents could select multiple conditions.
+
+    - 'Anxiety' includes feeling anxious, nervous, or tense, panic disorder, panic attack, phobic anxiety disorders, obsessive compulsive disorder, post traumatic stress disorder, and other anxiety related disorders
+    
+    - 'Depression' includes feeling depressed and postnatal depression
+    
+    - 'Behavioural or emotional problems' includes attention deficit hyperactivity disorder (ADHD), conduct disorders in children, adolescents and adults, other behavioural and emotional problems with usual onset in childhood or adolescence, personality disorder (all forms), and habit and impulse disorder
+    
+    - 'Other conditions' includes organic mental disorders, other mood (affective) disorders, problems of psychological development, schizophrenia, psychosis, and other mental and behavioural problems
+:::
+
+\newpage
+
+```{r}
+# Table 10J-3
+f_caption_table("Types of mental health conditions for people who have ever been diagnosed with a mental health condition who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("anxiety"     = "Anxiety",
+              "depression"  = "Depression",
+              "behavioural" = "Behavioural or\nemotional problems",
+              "substance"   = "Alcohol or\nsubstance misuse",
+              "other"       = "Other conditions",
+              "answered"    = "Total")
+
+mental_type %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Mental health\ncondition",
+                     total_row      = 6)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents who had ever been diagnosed with a mental health condition were asked which conditions they had been diagnosed with. Totals may not sum to 100% as respondents could select multiple conditions.
+
+    - 'Anxiety' includes feeling anxious, nervous, or tense, panic disorder, panic attack, phobic anxiety disorders, obsessive compulsive disorder, post traumatic stress disorder, and other anxiety related disorders
+    
+    - 'Depression' includes feeling depressed and postnatal depression
+    
+    - 'Behavioural or emotional problems' includes attention deficit hyperactivity disorder (ADHD), conduct disorders in children, adolescents and adults, other behavioural and emotional problems with usual onset in childhood or adolescence, personality disorder (all forms), and habit and impulse disorder
+    
+    - 'Other conditions' includes organic mental disorders, other mood (affective) disorders, problems of psychological development, schizophrenia, psychosis, and other mental and behavioural problems
+:::
+
+\newpage
+
+## Hospital Admissions - Mental Health Related Conditions
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - mental health conditions
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_mental <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_diag",
+                                              column_select = "admissions_for_mental_health_related_conditions_aboriginal_people")
+
+# Data wrangling
+hospital_mental <- hospital_mental %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_mental %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 3,970 hospital admissions for mental health related conditions for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 589 (Northcote/Preston/Whittlesea IARE) to 55 (Craigieburn/Sunbury IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 5,712 per 100,000 population (Whitehorse IARE) to 907 per 100,000 population (Craigieburn/Sunbury IARE).
+
+- 7 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Whitehorse, Melbourne/Port Phillip, Melbourne East, Melbourne North-East, Northcote/Preston/Whittlesea, Moreland/Broadmeadows, and Maroondah IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10J-6
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for mental health related conditions for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_mental %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 100,
+               y_expand   = 20,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_mental %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 1000,
+               y_expand   = 400,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Admissions for 'mental health related conditions' are defined as those with a principal diagnosis code between F00-F99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - F00-F09: Organic, including symptomatic, mental disorders
+    
+    - F10-F19: Mental and behavioural disorders due to psychoactive substance use
+    
+    - F20-F29: Schizophrenia, schizotypal, and delusional disorders
+    
+    - F30-F39: Mood (affective) disorders
+    
+    - F40-F48: Neurotic, stress-related, and somatoform disorders
+    
+    - F50-F59: Behavioural syndromes associated with physiological disturbances and physical factors
+    
+    - F60-F69: Disorders of adult personality and behaviour
+    
+    - F70-F79: Mental retardation
+    
+    - F80-F89: Disorders of psychological development
+    
+    - F90-F98: Behavioural and emotional disorders with onset usually occurring in childhood and adolescence
+    
+    - F99: Mental disorder, not otherwise specified
+:::
+
+\newpage
+
+```{r}
+# Table 10J-4
+f_caption_table("Hospital admissions for mental health related conditions for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_mental %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Admissions for 'mental health related conditions' are defined as those with a principal diagnosis code between F00-F99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - F00-F09: Organic, including symptomatic, mental disorders
+    
+    - F10-F19: Mental and behavioural disorders due to psychoactive substance use
+    
+    - F20-F29: Schizophrenia, schizotypal, and delusional disorders
+    
+    - F30-F39: Mood (affective) disorders
+    
+    - F40-F48: Neurotic, stress-related, and somatoform disorders
+    
+    - F50-F59: Behavioural syndromes associated with physiological disturbances and physical factors
+    
+    - F60-F69: Disorders of adult personality and behaviour
+    
+    - F70-F79: Mental retardation
+    
+    - F80-F89: Disorders of psychological development
+    
+    - F90-F98: Behavioural and emotional disorders with onset usually occurring in childhood and adolescence
+    
+    - F99: Mental disorder, not otherwise specified
+:::
+
+\newpage
+
+## Hospital Admissions - Mood (Affective) Disorders
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Hospitalisations - mood (affective) disorders
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_mood <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_diag",
+                                            column_select = "admissions_for_mood_affective_disorders_aboriginal_people")
+
+# Data wrangling
+hospital_mood <- hospital_mood %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_mood %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 803 hospital admissions for mood (affective) disorders for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 101 (Northcote/Preston/Whittlesea IARE) to 12 (Craigieburn/Sunbury IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 1,928 per 100,000 population (Whitehorse IARE) to 201 per 100,000 population (Craigieburn/Sunbury IARE).
+
+- 5 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Whitehorse, Melbourne East, Northcote/Preston/Whittlesea, Moreland/Broadmeadows, and Melbourne/Port Phillip IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10J-7
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for mood (affective) disorders for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_mood %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 10,
+               y_expand   = 1,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_mood %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 250,
+               y_expand   = 100,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Admissions for 'mood (affective) disorders' are defined as those with a principal diagnosis code between F30-F39, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following categories are included:
+
+    - F30: Manic episode
+    
+    - F31: Bipolar affective disorder
+    
+    - F32: Depressive episode
+    
+    - F33: Recurrent depressive disorder
+    
+    - F34: Persistent mood (affective) disorders
+    
+    - F38: Other mood (affective) disorders
+    
+    - F39: Unspecified mood (affective) disorder
+:::
+
+\newpage
+
+```{r}
+# Table 10J-5
+f_caption_table("Hospital admissions for mood (affective) disorders for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_mood %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Admissions for 'mood (affective) disorders' are defined as those with a principal diagnosis code between F30-F39, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following categories are included:
+
+    - F30: Manic episode
+    
+    - F31: Bipolar affective disorder
+    
+    - F32: Depressive episode
+    
+    - F33: Recurrent depressive disorder
+    
+    - F34: Persistent mood (affective) disorders
+    
+    - F38: Other mood (affective) disorders
+    
+    - F39: Unspecified mood (affective) disorder
+:::
+
+\newpage
+
+## Emergency Presentations
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Emergency presentations - musculoskeletal conditions
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+emergency_mental <- f_read_phidu_iare_hospital(data_sheet    = "ED_total",
+                                               column_select = "emergency_department_presentations_total_presentations_for_mental_and_behavioural_disorders_aboriginal_people")
+
+# Data wrangling
+emergency_mental <- emergency_mental %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- emergency_mental %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the AIHW National Non-Admitted Patient Emergency Department Care Database.
+
+- Between 01 July 2019 and 30 June 2020 there were 1,142 emergency department presentations for mental and behavioural disorders for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 182 (Northcote/Preston/Whittlesea IARE) to 15 (Maroondah IARE).
+
+- The age-standardised rate of presentations for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 7,086 per 100,000 population (Melbourne/Port Phillip IARE) to 1,265 per 100,000 population (Yarra Ranges IARE).
+
+- 6 of the 10 IAREs in the NEPHU catchment area had an age-standardised presentation rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Northcote/Preston/Whittlesea, Melbourne East, and Moreland/Broadmeadows, Melbourne North-East, and Whitehorse IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10J-8
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of emergency department presentations for mental and behavioral disorders for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+figure_number <- emergency_mental %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 25,
+               y_expand   = 20,
+               y_title    = "Number of presentations",
+               plot_tag   = "A")
+
+figure_rate <- emergency_mental %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 1000,
+               y_expand   = 1000,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+- Presentations for 'mental and behavioural disorders' are defined as those with a principal diagnosis code between F00-F99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - F00-F09: Organic, including symptomatic, mental disorders
+    
+    - F10-F19: Mental and behavioural disorders due to psychoactive substance use
+    
+    - F20-F29: Schizophrenia, schizotypal, and delusional disorders
+    
+    - F30-F39: Mood (affective) disorders
+    
+    - F40-F48: Neurotic, stress-related, and somatoform disorders
+    
+    - F50-F59: Behavioural syndromes associated with physiological disturbances and physical factors
+    
+    - F60-F69: Disorders of adult personality and behaviour
+    
+    - F70-F79: Mental retardation
+    
+    - F80-F89: Disorders of psychological development
+    
+    - F90-F98: Behavioural and emotional disorders with onset usually occurring in childhood and adolescence
+    
+    - F99: Mental disorder, not otherwise specified
+:::
+
+\newpage
+
+```{r}
+# Table 10J-6
+f_caption_table("Emergency department presentations for mental and behavioural disorders for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2019 to 30 June 2020")
+
+emergency_mental %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\npresentations", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vemd)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Presentations for 'mental and behavioural disorders' are defined as those with a principal diagnosis code between F00-F99, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - F00-F09: Organic, including symptomatic, mental disorders
+    
+    - F10-F19: Mental and behavioural disorders due to psychoactive substance use
+    
+    - F20-F29: Schizophrenia, schizotypal, and delusional disorders
+    
+    - F30-F39: Mood (affective) disorders
+    
+    - F40-F48: Neurotic, stress-related, and somatoform disorders
+    
+    - F50-F59: Behavioural syndromes associated with physiological disturbances and physical factors
+    
+    - F60-F69: Disorders of adult personality and behaviour
+    
+    - F70-F79: Mental retardation
+    
+    - F80-F89: Disorders of psychological development
+    
+    - F90-F98: Behavioural and emotional disorders with onset usually occurring in childhood and adolescence
+    
+    - F99: Mental disorder, not otherwise specified
+:::
+
+\newpage
+
+# Dementia
+
+## Prevalence
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Dementia, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_dementia_lga <- f_read_census_lga("Aboriginal_Health_Dementia_LGA.csv",
+                                         variable = "dementia") %>% 
+  #
+  dplyr::filter(dementia != "Not stated")
+
+# Data wrangling
+health_dementia_lga <- health_dementia_lga %>%
+  #
+  dplyr::mutate(dementia = dplyr::case_when(
+    dementia == "Has dementia (including Alzheimer's)" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = dementia,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Dementia, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_dementia_agesex <- f_read_census_agesex("Aboriginal_Health_Dementia_AgeSex.csv",
+                                               variable = "dementia") %>% 
+  #
+  dplyr::filter(dementia != "Not stated")
+
+# Data wrangling
+health_dementia_agesex <- health_dementia_agesex %>% 
+  #
+  dplyr::mutate(dementia = dplyr::case_when(
+    dementia == "Has dementia (including Alzheimer's)" ~ "yes",
+    TRUE ~ "no")) %>%  
+  #
+  f_wrangle_census_agesex(variable = dementia,
+                          dichot   = "yes")
+```
+
+
+```{r}
+#
+results <- list()
+data    <- health_dementia_lga
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the ABS Census 2021.
+
+- Overall, 0.39% (n = 45) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census have been told by a doctor or nurse that they have dementia. This is lower than for non-Indigenous people living in the NEPHU catchment (0.76%).
+
+- All of the people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census with age and sex information available who have been told by a doctor or nurse that they have dementia were aged between 50-89 years. There were similar numbers of males (n = 8) and females (n = 10).
+
+- It is not reliable to report on this indicator broken down further by LGA or by age and sex due to small numbers.
+:::
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Dementia' includes Alzheimer's disease.
+:::
+

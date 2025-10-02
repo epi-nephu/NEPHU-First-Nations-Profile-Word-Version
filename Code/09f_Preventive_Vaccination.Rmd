@@ -1,0 +1,810 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Seeking and Risk Behaviours: Vaccination"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "09F Preventive Vaccination ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_vaccination.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_vaccination.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 9F-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 9F-"))
+  
+  return(caption)
+  
+}
+```
+
+### What health promoting or health risk behaviours are Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment undertaking?
+
+# Childhood Vaccinations
+
+```{r, include = FALSE}
+# ---------------------------------------------------------------------------------
+# Vaccination coverage: 1 year
+# Data from AIHW Aboriginal and Torres Strait Islander Health Performance Framework
+# ---------------------------------------------------------------------------------
+# Read in AIR data
+childhood_year1 <- readxl::read_excel(file.path(root_folder, subfolder_framework, "302-Immunisation.xlsx"),
+                                      sheet        = "D3.02.2",
+                                      skip         = 2,
+                                      trim_ws      = TRUE,
+                                      .name_repair = "universal_quiet") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(indigenous_status = x1,
+                hepb              = hepatitis_b,
+                pneumo            = pneumococcal,
+                fully             = fully_immunised) %>% 
+  #
+  dplyr::select(-mmr_c,
+                -varicella_c,
+                -men_c_c) %>% 
+  #
+  dplyr::filter(row_number() %in% c(8:9))
+
+# Data wrangling
+childhood_year1 <- childhood_year1 %>% 
+  dplyr::mutate(indigenous_status = dplyr::case_when(
+    indigenous_status == "Indigenous" ~ "aboriginal",
+    TRUE ~ "non_aboriginal")) %>% 
+  #
+  dplyr::mutate(across(!indigenous_status, as.numeric)) %>% 
+  #
+  tidyr::pivot_longer(!indigenous_status,
+                      names_to  = "vaccine",
+                      values_to = "percent") %>% 
+  #
+  dplyr::mutate(vaccine = factor(vaccine,
+                                 levels = c("dtp", "hepb", "hib", "pneumo", "polio", "fully"))) %>% 
+  #
+  dplyr::arrange(vaccine)
+
+# ---------------------------------------------------------------------------------
+# Vaccination coverage: 2 years
+# Data from AIHW Aboriginal and Torres Strait Islander Health Performance Framework
+# ---------------------------------------------------------------------------------
+# Read in AIR data
+childhood_year2 <- readxl::read_excel(file.path(root_folder, subfolder_framework, "302-Immunisation.xlsx"),
+                                      sheet        = "D3.02.3",
+                                      skip         = 2,
+                                      trim_ws      = TRUE,
+                                      .name_repair = "universal_quiet") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(indigenous_status = x1,
+                hepb              = hepatitis_b,
+                pneumo            = pneumococcal,
+                menc              = men_c,
+                fully             = fully_immunised) %>%
+  #
+  dplyr::filter(row_number() %in% c(8:9))
+
+# Data wrangling
+childhood_year2 <- childhood_year2 %>% 
+  dplyr::mutate(indigenous_status = dplyr::case_when(
+    indigenous_status == "Indigenous" ~ "aboriginal",
+    TRUE ~ "non_aboriginal")) %>% 
+  #
+  dplyr::mutate(across(!indigenous_status, as.numeric)) %>% 
+  #
+  tidyr::pivot_longer(!indigenous_status,
+                      names_to  = "vaccine",
+                      values_to = "percent") %>% 
+  #
+  dplyr::mutate(vaccine = factor(vaccine,
+                                 levels = c("dtp", "hepb", "hib", "menc", "mmr", "pneumo", "polio", "varicella", "fully"))) %>% 
+  #
+  dplyr::arrange(vaccine)
+
+# ---------------------------------------------------------------------------------
+# Vaccination coverage: 5 years
+# Data from AIHW Aboriginal and Torres Strait Islander Health Performance Framework
+# ---------------------------------------------------------------------------------
+# Read in AIR data
+childhood_year5 <- readxl::read_excel(file.path(root_folder, subfolder_framework, "302-Immunisation.xlsx"),
+                                      sheet        = "D3.02.4",
+                                      skip         = 2,
+                                      trim_ws      = TRUE,
+                                      .name_repair = "universal_quiet") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(indigenous_status = x1,
+                fully             = fully_immunised) %>% 
+  #
+  dplyr::select(indigenous_status,
+                dtp,
+                polio,
+                fully) %>% 
+  #
+  dplyr::filter(row_number() %in% c(8:9))
+
+# Data wrangling
+childhood_year5 <- childhood_year5 %>% 
+  dplyr::mutate(indigenous_status = dplyr::case_when(
+    indigenous_status == "Indigenous" ~ "aboriginal",
+    TRUE ~ "non_aboriginal")) %>% 
+  #
+  dplyr::mutate(across(!indigenous_status, as.numeric)) %>% 
+  #
+  tidyr::pivot_longer(!indigenous_status,
+                      names_to  = "vaccine",
+                      values_to = "percent") %>% 
+  #
+  dplyr::mutate(vaccine = factor(vaccine,
+                                 levels = c("dtp", "polio", "fully"))) %>% 
+  #
+  dplyr::arrange(vaccine)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the AIHW Aboriginal and Torres Strait Islander Performance Framework, compiled from the Australian Immunisation Register.
+
+- 92% of Aboriginal and/or Torres Strait Islander children living in Victoria were fully immunised at 1 year of age, compared to 94% of non-Indigenous children.
+
+- 90% of Aboriginal and/or Torres Strait Islander children living in Victoria were fully immunised at 2 years of age, compared to 93% of non-Indigenous children.
+
+- 96% of Aboriginal and/or Torres Strait Islander children living in Victoria were fully immunised at 2 years of age, compared to 95% of non-Indigenous children.
+:::
+
+\newpage
+
+```{r}
+# Figure 9F-1
+f_caption_figure("Vaccination coverage for children enrolled in Medicare at 1 year of age, Victoria, by Aboriginal and/or Torres Strait Islander status, December 2022")
+
+childhood_year1 %>% 
+  f_graph_vaccination(x_labels = c("DTP", "Hepatitis B", "HiB", "Pneumococcal", 
+                                   "Polio", "Fully immunised"))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_framework_air)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The aspirational national target for vaccination coverage is for 95% of children to be fully immunised at each age point (1 year, 2 years, and 5 years).
+
+    - The 1 year milestone is assessed for children aged 12-15 months at the time of reporting
+    
+    - The 2 year milestone is assessed for children aged 24-27 months at the time of reporting
+    
+    - The 5 year milestone is assessed for children aged 60-63 months at the time of reporting
+
+- Children fully vaccinated for age at 1 year have received all of the following vaccines, due at 6 months of age:
+
+    - Diphtheria, tetanus, and pertussis (DTP)
+    
+    - Hepatitis B
+    
+    - *Haemophilus influenzae* type B (HiB)
+    
+    - Pneumococcal disease
+    
+    - Poliomyelitis
+:::
+
+\newpage
+
+```{r}
+# Table 9F-1
+f_caption_table("Vaccination coverage for children enrolled in Medicare at 1 year of age, Victoria, by Aboriginal and/or Torres Strait Islander status, December 2022")
+
+x_labels <- c("dtp"    = "DTP",
+              "hepb"   = "Hepatitis B",
+              "hib"    = "HiB",
+              "pneumo" = "Pneumococcal",
+              "polio"  = "Polio",
+              "fully"  = "Fully immunised")
+
+childhood_year1 %>% 
+  f_table_vaccination(x_labels  = x_labels,
+                      fully_row = 6)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_framework_air)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The aspirational national target for vaccination coverage is for 95% of children to be fully immunised at each age point (1 year, 2 years, and 5 years).
+
+    - The 1 year milestone is assessed for children aged 12-15 months at the time of reporting
+    
+    - The 2 year milestone is assessed for children aged 24-27 months at the time of reporting
+    
+    - The 5 year milestone is assessed for children aged 60-63 months at the time of reporting
+
+- Children fully vaccinated for age at 1 year have received all of the following vaccines, due at 6 months of age:
+
+    - Diphtheria, tetanus, and pertussis (DTP)
+    
+    - Hepatitis B
+    
+    - *Haemophilus influenzae* type B (HiB)
+    
+    - Pneumococcal disease
+    
+    - Poliomyelitis
+:::
+
+\newpage
+
+```{r}
+# Figure 9F-2
+f_caption_figure("Vaccination coverage for children enrolled in Medicare at 2 years of age, Victoria, by Aboriginal and/or Torres Strait Islander status, December 2022")
+
+childhood_year2 %>% 
+  f_graph_vaccination(x_labels = c("DTP", "Hepatitis B", "HiB", "Men C", "MMR", 
+                                   "Pneumococcal", "Polio", "Varicella", "Fully\nimmunised"))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_framework_air)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The aspirational national target for vaccination coverage is for 95% of children to be fully immunised at each age point (1 year, 2 years, and 5 years).
+
+    - The 1 year milestone is assessed for children aged 12-15 months at the time of reporting
+    
+    - The 2 year milestone is assessed for children aged 24-27 months at the time of reporting
+    
+    - The 5 year milestone is assessed for children aged 60-63 months at the time of reporting
+
+- Children fully vaccinated for age at 2 years have received all of the following vaccines, due at 12 and 18 months of age:
+
+    - Diphtheria, tetanus, and pertussis (DTP)
+    
+    - Hepatitis B
+    
+    - *Haemophilus influenzae* type B (HiB)
+    
+    - Meningococcal C
+    
+    - Measles, mumps, and rubella (MMR)
+    
+    - Pneumococcal disease
+    
+    - Poliomyelitis
+    
+    - Varicella zoster
+:::
+
+\newpage
+
+```{r}
+# Table 9F-2
+f_caption_table("Vaccination coverage for children enrolled in Medicare at 2 years of age, Victoria, by Aboriginal and/or Torres Strait Islander status, December 2022")
+
+x_labels <- c("dtp"       = "DTP",
+              "hepb"      = "Hepatitis B",
+              "hib"       = "HiB",
+              "menc"      = "Meningococcal C",
+              "mmr"       = "MMR",
+              "pneumo"    = "Pneumococcal",
+              "polio"     = "Polio",
+              "varicella" = "Varicella",
+              "fully"     = "Fully immunised")
+
+childhood_year2 %>% 
+  f_table_vaccination(x_labels  = x_labels,
+                      fully_row = 9)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_framework_air)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The aspirational national target for vaccination coverage is for 95% of children to be fully immunised at each age point (1 year, 2 years, and 5 years).
+
+    - The 1 year milestone is assessed for children aged 12-15 months at the time of reporting
+    
+    - The 2 year milestone is assessed for children aged 24-27 months at the time of reporting
+    
+    - The 5 year milestone is assessed for children aged 60-63 months at the time of reporting
+
+- Children fully vaccinated for age at 2 years have received all of the following vaccines, due at 12 and 18 months of age:
+
+    - Diphtheria, tetanus, and pertussis (DTP)
+    
+    - Hepatitis B
+    
+    - *Haemophilus influenzae* type B (HiB)
+    
+    - Meningococcal C
+    
+    - Measles, mumps, and rubella (MMR)
+    
+    - Pneumococcal disease
+    
+    - Poliomyelitis
+    
+    - Varicella zoster
+:::
+
+\newpage
+
+```{r}
+# Figure 9F-3
+f_caption_figure("Vaccination coverage for children enrolled in Medicare at 5 years of age, Victoria, by Aboriginal and/or Torres Strait Islander status, December 2022")
+
+childhood_year5 %>% 
+  f_graph_vaccination(x_labels = c("DTP", "Polio", "Fully immunised"))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_framework_air)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The aspirational national target for vaccination coverage is for 95% of children to be fully immunised at each age point (1 year, 2 years, and 5 years).
+
+    - The 1 year milestone is assessed for children aged 12-15 months at the time of reporting
+    
+    - The 2 year milestone is assessed for children aged 24-27 months at the time of reporting
+    
+    - The 5 year milestone is assessed for children aged 60-63 months at the time of reporting
+
+- Children fully vaccinated for age at 5 years have received all of the following vaccines, due at 48 months of age:
+
+    - Diphtheria, tetanus, and pertussis (DTP)
+    
+    - Poliomyelitis
+:::
+
+\newpage
+
+```{r}
+# Table 9F-3
+f_caption_table("Vaccination coverage for children enrolled in Medicare at 5 years of age, Victoria, by Aboriginal and/or Torres Strait Islander status, December 2022")
+
+x_labels <- c("dtp"   = "DTP",
+              "polio" = "Polio",
+              "fully" = "Fully immunised")
+
+childhood_year5 %>% 
+  f_table_vaccination(x_labels  = x_labels,
+                      fully_row = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_framework_air)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The aspirational national target for vaccination coverage is for 95% of children to be fully immunised at each age point (1 year, 2 years, and 5 years).
+
+    - The 1 year milestone is assessed for children aged 12-15 months at the time of reporting
+    
+    - The 2 year milestone is assessed for children aged 24-27 months at the time of reporting
+    
+    - The 5 year milestone is assessed for children aged 60-63 months at the time of reporting
+
+- Children fully vaccinated for age at 5 years have received all of the following vaccines, due at 48 months of age:
+
+    - Diphtheria, tetanus, and pertussis (DTP)
+    
+    - Poliomyelitis
+:::
+
+\newpage
+
+# Adolescent Vaccination for HPV
+
+```{r}
+# ---------------------------------------------------------------------------------
+# Vaccination coverage: HPV
+# Data from AIHW Aboriginal and Torres Strait Islander Health Performance Framework
+# ---------------------------------------------------------------------------------
+# Read in AIR data
+adolescent_hpv <- readxl::read_excel(file.path(root_folder, subfolder_framework, "302-Immunisation.xlsx"),
+                                     sheet        = "D3.02.11",
+                                     skip         = 2,
+                                     trim_ws      = TRUE,
+                                     .name_repair = "universal_quiet") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(girls_indigenous = girls_2,
+                boys_indigenous  = boys_3,
+                girls_other      = girls_5,
+                boys_other       = boys_6) %>% 
+  #
+  dplyr::select(girls_indigenous,
+                boys_indigenous,
+                girls_other,
+                boys_other) %>% 
+  #
+  dplyr::filter(row_number() == 4)
+
+# Data wrangling
+adolescent_hpv <- adolescent_hpv %>%
+  dplyr::mutate(across(everything(), as.numeric)) %>% 
+  #
+  tidyr::pivot_longer(everything(),
+                      names_to  = "group",
+                      values_to = "percent") %>%
+  #
+  dplyr::mutate(sex = dplyr::case_when(stringr::str_detect(group, "girls") ~ "female",
+                                       stringr::str_detect(group, "boys")  ~ "male"),
+                #
+                indigenous_status = dplyr::case_when(stringr::str_detect(group, "indigenous") ~ "aboriginal",
+                                                     stringr::str_detect(group, "other")      ~ "non-aboriginal")) %>% 
+  #
+  dplyr::select(sex,
+                indigenous_status,
+                percent)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the AIHW Aboriginal and Torres Strait Islander Performance Framework, compiled from the Australian Immunisation Register.
+
+- 83% of Aboriginal and/or Torres Strait Islander adolescent females living in Victoria had received at least one HPV vaccine dose before their 15th birthday, compared to 87% of non-Indigenous adolescent females.
+
+- 79% of Aboriginal and/or Torres Strait Islander adolescent males living in Victoria had received at least one HPV vaccine dose before their 15th birthday, compared to 84% of non-Indigenous adolescent males.
+:::
+
+```{r}
+# Table 9F-4
+f_caption_table("Human papillomavirus (HPV) vaccination coverage (at least one dose received before 15th birthday), Victoria, by Aboriginal and/or Torres Strait Islander status and sex, December 2022")
+
+x_labels <- c("female" = "Female",
+              "male"   = "Male")
+
+adolescent_hpv %>% 
+  dplyr::rename(vaccine = sex) %>% 
+  #
+  f_table_vaccination(x_labels  = x_labels,
+                      fully_row = NULL) %>% 
+  #
+  flextable::set_header_labels(values = c("Sex", "Yes\n(%)", "No\n(%)")) %>% 
+  #
+  flextable::bold(i = 1:2,
+                  bold = FALSE)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_framework_air)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The first dose of HPV vaccination is offered through school immunisation programs in Year 7 (ages 12-13 years).
+:::
+
+\newpage
+
+# Adult Vaccinations
+
+```{r}
+# ------------------------------------------------------------------------------
+# Adult vaccinations: influenza
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+adult_influenza <- f_read_natsihs_sex("Indicator_Vic_Sex_Vaccination_Influenza.csv")
+
+# Data wrangling
+adult_influenza <- adult_influenza %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(never_had_influenza_vaccination_n:had_influenza_vaccination_in_last_12_months_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(never_n     = never_had_influenza_vaccination_n,
+                notrecent_n = had_influenza_vaccination_but_not_in_last_12_months_n,
+                recent_n    = had_influenza_vaccination_in_last_12_months_n) %>% 
+  #
+  dplyr::mutate(across(never_n:recent_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("recent"),
+                starts_with("notrecent"),
+                starts_with("never"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Adult vaccinations: pneumococcal
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+adult_pneumo <- f_read_natsihs_sex("Indicator_Vic_Sex_Vaccination_Pneumococcal.csv")
+
+# Data wrangling
+adult_pneumo <- adult_pneumo %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(never_had_pneumococcus_vaccination_n:had_pneumococcus_vaccination_in_last_5_years_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(never_n     = never_had_pneumococcus_vaccination_n,
+                notrecent_n = had_pneumococcus_vaccination_but_not_in_last_5_years_n,
+                recent_n    = had_pneumococcus_vaccination_in_last_5_years_n) %>% 
+  #
+  dplyr::mutate(across(never_n:recent_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("recent"),
+                starts_with("notrecent"),
+                starts_with("never"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data are obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 39% (approximately 11,400 people) of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne had received an influenza vaccine in the 12 months prior to the survey, and a further 45% (approximately 13,000 people) had received an influenza vaccine more than 12 months ago.
+
+- Females were more likely to have received an influenza vaccine in the 12 months prior to the survey than males (42% vs. 37%).
+
+- Overall, 12% (approximately 3,100 people) of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne had received a pneumococcal vaccine in the 5 years prior to the survey, and a further 5.2% (approximately 1,400 people) had received a pneumococcal vaccine more than 5 years ago.
+
+- Males were more likely to have received a pneumococcal vaccine in the 5 years prior to the survey than females (17% vs. 5.5%).
+:::
+
+```{r}
+# Figure 9F-4
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander and receipt of influenza vaccine, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- adult_influenza %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("recent_n", "notrecent_n", "never_n"),
+                     x_labels   = c("Within last\n12 months", "More than\n12 months ago", "Never"),
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 800,
+                     y_title    = "Estimated number of people")
+
+figure_percent <- adult_influenza %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("recent_prop", "notrecent_prop", "never_prop"),
+                     x_labels   = c("Within last\n12 months", "More than\n12 months ago", "Never"),
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Annual influenza vaccination is [recommended and free](https://www.health.gov.au/topics/immunisation/when-to-get-vaccinated/immunisation-for-aboriginal-and-torres-strait-islander-people) for all Aboriginal and/or Torres Strait Islander people aged 6 months and over.
+:::
+
+```{r}
+# Table 9F-5
+f_caption_table("Receipt of influenza vaccine for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("recent"    = "Within last 12 months",
+              "notrecent" = "More than 12 months ago",
+              "never"     = "Never",
+              "answered"  = "Total")
+
+adult_influenza %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Influenza vaccine",
+                     total_row      = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Annual influenza vaccination is [recommended and free](https://www.health.gov.au/topics/immunisation/when-to-get-vaccinated/immunisation-for-aboriginal-and-torres-strait-islander-people) for all Aboriginal and/or Torres Strait Islander people aged 6 months and over.
+:::
+
+```{r}
+# Figure 9F-5
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander and receipt of pneumococcal vaccine, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- adult_pneumo %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("recent_n", "notrecent_n", "never_n"),
+                     x_labels   = c("Within last\n5 years", "More than\n5 years ago", "Never"),
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 1000,
+                     y_title    = "Estimated number of people")
+
+figure_percent <- adult_pneumo %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("recent_prop", "notrecent_prop", "never_prop"),
+                     x_labels   = c("Within last\n5 years", "More than\n5 years ago", "Never"),
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Pneumococcal vaccination is [recommended and free](https://www.health.gov.au/topics/immunisation/when-to-get-vaccinated/immunisation-for-aboriginal-and-torres-strait-islander-people) for all Aboriginal and/or Torres Strait Islander people aged 50 years and over.
+:::
+
+\newpage
+
+```{r}
+# Table 9F-6
+f_caption_table("Receipt of pneumococcal vaccine for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("recent"    = "Within last 5 years",
+              "notrecent" = "More than 5 years ago",
+              "never"     = "Never",
+              "answered"  = "Total")
+
+adult_pneumo %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Pneumococcal vaccine",
+                     total_row      = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Pneumococcal vaccination is [recommended and free](https://www.health.gov.au/topics/immunisation/when-to-get-vaccinated/immunisation-for-aboriginal-and-torres-strait-islander-people) for all Aboriginal and/or Torres Strait Islander people aged 50 years and over.
+:::
+

@@ -1,0 +1,1579 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Socioeconomic Determinants of Health: Childhood"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "06A Socioeconomic Childhood ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_phidu_iare.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_naplan.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_iare.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_ctg_target.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_line_comparison.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_naplan.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_iare.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_rate_year.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_naplan.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+officer::block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 6A-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 6A-"))
+  
+  return(caption)
+  
+}
+```
+
+### Are Aboriginal and/or Torres Strait Islander children living in the NEPHU catchment getting the best start in life?
+
+# Perinatal Factors
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Pre and perinatal factors
+# Smoking during pregnancy, antenatal visits, birthweight
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+childhood_iare <- f_read_phidu_iare(
+  data_sheet    = "Mothers_babies",
+  column_select = c(iare_name = "name_of_indigenous_area_of_residence",
+                    #
+                    low_birthweight_n     = "low_birthweight_babies_a",
+                    low_birthweight_total = "births",
+                    low_birthweight_prop  = "low_birthweight_babies",
+                    #
+                    smoking_n     = "smoking_during_pregnancy_b",
+                    smoking_total = "number_of_pregnancies",
+                    smoking_prop  = "smoking_during_pregnancy",
+                    #
+                    antenatal_n     = "aboriginal_women_who_did_not_attend_antenatal_care_within_the_first_10_weeks_c",
+                    antenatal_total = "aboriginal_women_who_gave_birth_d",
+                    antenatal_prop  = "aboriginal_women_who_did_not_attend_antenatal_care_within_the_first_10_weeks"))
+```
+
+## Smoking During Pregnancy
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Smoking during pregnancy
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Data wrangling
+childhood_smoking <- childhood_iare %>%
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("smoking_")) %>% 
+  #
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- childhood_smoking %>% 
+  dplyr::rename(n    = smoking_n,
+                prop = smoking_prop)
+
+results$melbourne_n <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(n)
+
+results$melbourne_prop <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(prop)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n))
+
+results$rank_prop <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(prop))
+```
+
+::: {custom-style="Dotpt"}
+- `r round(results$melbourne_prop, digits = 0)`% (n = `r formatC(results$melbourne_n, big.mark = ",")`) of Aboriginal and/or Torres Strait Islander women in the Greater Melbourne area during 2019-2021 reported smoking during pregnancy.
+
+- The percentage of Aboriginal and/or Torres Strait Islander women living in IAREs within the NEPHU catchment who reported smoking during pregnancy ranged from 44% (n = 29, Melbourne - Port Phillip IARE) to 21% (n = 12, Melbourne - North-East IARE).
+:::
+
+```{r}
+# Figure 6A-1
+f_caption_figure("(A) Number and (B) percentage of women who identified as Aboriginal and/or Torres Strait Islander and who reported smoking during pregnancy, NEPHU catchment, by IARE, 2019-2021")
+
+figure_number <- childhood_smoking %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = smoking_n,
+               y_max      = NA,
+               y_breaks   = 10,
+               y_expand   = 5,
+               y_title    = "Number of women",
+               plot_tag   = "A")
+
+figure_percent <- childhood_smoking %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = smoking_prop,
+               y_max      = 100,
+               y_breaks   = 10,
+               y_expand   = 1,
+               y_title    = "Percentage of women",
+               plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [PHIDU Social Health Atlas](https://phidu.torrens.edu.au/social-health-atlases), compiled from the [National Perinatal Data Collection](https://www.aihw.gov.au/about-our-data/our-data-collections/national-perinatal-data-collection). Data are aggregated for a three-year period (2019-2021).
+
+- The PHIDU Social Health Atlas is a compendium of demographic, social, health status, and health service utilisation indicators compiled by Torrens University Australia from a wide range of national, jurisdictional, and regional data sources.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- IAREs that are partly or entirely within the NEPHU catchment include: Craigieburn - Sunbury (Craigieburn), Knox, Maroondah, Melbourne - East (Melbourne (E)), Melbourne - North-East (Melbourne (NE)), Melbourne - Port Phillip (Port Phillip), Moreland - Broadmeadows (Broadmeadows), Northcote - Preston - Whittlesea (Northcote), Whitehorse, and Yarra Ranges.
+
+- Women are classified as smoking during pregnancy based on self-reporting of smoking at any time during their pregnancy. The denominator for this indicator is women who had at least one pregnancy during 2019-2021 and who identified as Aboriginal and/or Torres Strait Islander.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-1
+f_caption_table("Number and percentage of women who identified as Aboriginal and/or Torres Strait Islander and who reported smoking during pregnancy, NEPHU catchment, by IARE, 2019-2021")
+
+childhood_smoking %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(smoking_prop = round(smoking_prop, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Smoked during\npregnancy", "Total pregnant women", "% of pregnant women"),
+               last_column   = 4)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [PHIDU Social Health Atlas](https://phidu.torrens.edu.au/social-health-atlases), compiled from the [National Perinatal Data Collection](https://www.aihw.gov.au/about-our-data/our-data-collections/national-perinatal-data-collection). Data are aggregated for a three-year period (2019-2021).
+
+- The PHIDU Social Health Atlas is a compendium of demographic, social, health status, and health service utilisation indicators compiled by Torrens University Australia from a wide range of national, jurisdictional, and regional data sources.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- IAREs that are partly or entirely within the NEPHU catchment include: Craigieburn - Sunbury, Knox, Maroondah, Melbourne - East, Melbourne - North-East, Melbourne - Port Phillip, Moreland - Broadmeadows, Northcote - Preston - Whittlesea, Whitehorse, and Yarra Ranges.
+
+- Women are classified as smoking during pregnancy based on self-reporting of smoking at any time during their pregnancy. The denominator for this indicator is women who had at least one pregnancy during 2019-2021 and who identified as Aboriginal and/or Torres Strait Islander.
+:::
+
+\newpage
+
+## Antenatal Care Attendance
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Antenatal care
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Data wrangling
+childhood_antenatal <- childhood_iare %>%
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("antenatal_")) %>% 
+  #
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- childhood_antenatal %>% 
+  dplyr::rename(n    = antenatal_n,
+                prop = antenatal_prop)
+
+results$melbourne_n <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(n)
+
+results$melbourne_prop <- data %>% 
+  dplyr::filter(iare_name == "Greater Melbourne") %>% 
+  pull(prop)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n))
+
+results$rank_prop <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(prop))
+```
+
+::: {custom-style="Dotpt"}
+- `r round(results$melbourne_prop, digits = 0)`% (n = `r formatC(results$melbourne_n, big.mark = ",")`) of Aboriginal and/or Torres Strait Islander women in the Greater Melbourne area during 2019-2021 did not attend antenatal care during the first 10 weeks of pregnancy. This is higher than for all women living in LGAs within the NEPHU catchment area (37%), however this comparison should be interpreted with caution as it includes both Aboriginal and/or Torres Strait Islander and non-Aboriginal and/or Torres Strait Islander women and covers a different geographical area.
+
+- The percentage of Aboriginal and/or Torres Strait Islander women living in IAREs within the NEPHU catchment who did not attend antenatal care during the first 10 weeks of pregnancy ranged from 76% (n = 50, Melbourne - Port Phillip IARE) to 22% (n = 9, Knox IARE).
+:::
+
+```{r}
+# Figure 6A-2
+f_caption_figure("(A) Number and (B) percentage of women who identified as Aboriginal and/or Torres Strait Islander and who did not attend antenatal care during the first 10 weeks of pregnancy, NEPHU catchment, by IARE, 2019-2021")
+
+figure_number <- childhood_antenatal %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = antenatal_n,
+               y_max      = NA,
+               y_breaks   = 20,
+               y_expand   = 9,
+               y_title    = "Number of women",
+               plot_tag   = "A")
+
+figure_percent <- childhood_antenatal %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = antenatal_prop,
+               y_max      = 100,
+               y_breaks   = 10,
+               y_expand   = 1,
+               y_title    = "Percentage of women",
+               plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [PHIDU Social Health Atlas](https://phidu.torrens.edu.au/social-health-atlases), compiled from the [National Perinatal Data Collection](https://www.aihw.gov.au/about-our-data/our-data-collections/national-perinatal-data-collection). Data are aggregated for a three-year period (2019-2021).
+
+- The PHIDU Social Health Atlas is a compendium of demographic, social, health status, and health service utilisation indicators compiled by Torrens University Australia from a wide range of national, jurisdictional, and regional data sources.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- IAREs that are partly or entirely within the NEPHU catchment include: Craigieburn - Sunbury (Craigieburn), Knox, Maroondah, Melbourne - East (Melbourne (E)), Melbourne - North-East (Melbourne (NE)), Melbourne - Port Phillip (Port Phillip), Moreland - Broadmeadows (Broadmeadows), Northcote - Preston - Whittlesea (Northcote), Whitehorse, and Yarra Ranges.
+
+- Women are classified as attending antenatal care in line with recommendations if they attended within the first 10 weeks of pregnancy. The denominator for this indicator is women who had at least one pregnancy during 2019-2021 and who identified as Aboriginal and/or Torres Strait Islander.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-2
+f_caption_table("Number and percentage of women who identified as Aboriginal and/or Torres Strait Islander and who did not attend antenatal care during the first 10 weeks of pregnancy, NEPHU catchment, by IARE, 2019-2021")
+
+childhood_antenatal %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(antenatal_prop = round(antenatal_prop, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Did not attend\nantenatal care", "Total pregnant women", "% of pregnant women"),
+               last_column   = 4)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [PHIDU Social Health Atlas](https://phidu.torrens.edu.au/social-health-atlases), compiled from the [National Perinatal Data Collection](https://www.aihw.gov.au/about-our-data/our-data-collections/national-perinatal-data-collection). Data are aggregated for a three-year period (2019-2021).
+
+- The PHIDU Social Health Atlas is a compendium of demographic, social, health status, and health service utilisation indicators compiled by Torrens University Australia from a wide range of national, jurisdictional, and regional data sources.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- IAREs that are partly or entirely within the NEPHU catchment include: Craigieburn - Sunbury, Knox, Maroondah, Melbourne - East, Melbourne - North-East, Melbourne - Port Phillip, Moreland - Broadmeadows, Northcote - Preston - Whittlesea, Whitehorse, and Yarra Ranges.
+
+- Women are classified as attending antenatal care in line with recommendations if they attended within the first 10 weeks of pregnancy. The denominator for this indicator is women who had at least one pregnancy during 2019-2021 and who identified as Aboriginal and/or Torres Strait Islander.
+:::
+
+\newpage
+
+## Premature Birth
+
+::: {custom-style="Dotpt"}
+- In 2020, 88% (n = 414) of babies born to Aboriginal and/or Torres Strait Islander mothers in Greater Melbourne were born at term.
+
+- In 2020, 88% (n = 598) of Aboriginal and/or Torres Strait Islander babies in Greater Melbourne were born at term.
+:::
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [AIHW Mothers and Babies Report](https://www.aihw.gov.au/reports/mothers-babies/australias-mothers-babies/contents/summary) and are only publicly available at an aggregate level for Melbourne or Victoria (excluding Melbourne).
+
+- Data are available for babies born to Aboriginal and/or Torres Strait Islander mothers and for Aboriginal and/or Torres Strait Islander babies.
+
+- Gestational age is the duration of pregnancy in completed weeks. Gestational age is reported in 3 categories: pre-term (less than 37 weeks’ gestation), at term (37 to 41 weeks) and post-term (42 weeks and over).
+:::
+
+\newpage
+
+## Birthweight
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 2: By 2031, increase the proportion of Aboriginal and/or Torres Strait Islander babies with a healthy birthweight to 91%.
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Birthweight, by IARE
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Data wrangling
+childhood_birthweight <- childhood_iare %>%
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("low_")) %>% 
+  #
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl),
+                #
+                birthweight_n     = low_birthweight_total - low_birthweight_n,
+                birthweight_total = low_birthweight_total,
+                birthweight_prop  = birthweight_n / birthweight_total * 100,
+                #
+                birthweight_n_label = dplyr::case_when(
+                  is.na(birthweight_n) ~ "*",
+                  TRUE ~ format(birthweight_n, big.mark = ",")),
+                #
+                birthweight_total_label = dplyr::case_when(
+                  is.na(birthweight_total) ~ "*",
+                  TRUE ~ format(birthweight_total, big.mark = ",")),
+                #
+                birthweight_prop_label = dplyr::case_when(
+                  is.na(birthweight_prop) ~ "*",
+                  TRUE ~ sprintf("%.1f", birthweight_prop))) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("birthweight_")) %>% 
+  #
+  dplyr::arrange(iare_name)
+
+# ---------------------------------------------------------------------------------
+# Birthweight, by year
+# Data from AIHW Aboriginal and Torres Strait Islander Health Performance Framework
+# ---------------------------------------------------------------------------------
+# Read in AIHW data
+childhood_birthweight_year <- readxl::read_excel(file.path(root_folder, subfolder_framework, "101-Birthweight.xlsx"),
+                                                 sheet        = "D1.01.3",
+                                                 skip         = 1,
+                                                 trim_ws      = TRUE,
+                                                 .name_repair = "universal_quiet") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::select(indigenous_status = x1,
+                x2011:x2020) %>% 
+  #
+  dplyr::filter(row_number() %in% c(8:9))
+
+# Data wrangling
+childhood_birthweight_year <- childhood_birthweight_year %>% 
+  dplyr::mutate(indigenous_status = dplyr::case_when(
+    indigenous_status == "Births to First Nations mothers" ~ "aboriginal",
+    TRUE ~ "non_aboriginal")) %>% 
+  #
+  tidyr::pivot_longer(!indigenous_status,
+                      names_to  = "year",
+                      values_to = "percent") %>% 
+  #
+  dplyr::mutate(year = stringr::str_sub(year, 2),
+                year = factor(year),
+                #
+                percent = as.numeric(percent))
+```
+
+::: {custom-style="Dotpt"}
+- 92% (n = 1,959) of liveborn babies born to Aboriginal and/or Torres Strait Islander women in the Greater Melbourne area during 2019-2021 were of a healthy birthweight.
+
+- 4 of the 7 IAREs in the NEPHU catchment area with data available for reporting were on or above the Closing the Gap target of 91%: Craigieburn - Sunbury (95%, n = 106), Yarra Ranges (94%, n = 93), Moreland - Broadmeadows (92%, n = 98), and Melbourne - North-East (91%, n = 75).
+:::
+
+```{r}
+# Figure 6A-3
+f_caption_figure("(A) Number and (B) percentage of singleton live births with a birthweight above 2,500g for babies born to women who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 2019-2021")
+
+figure_number <- childhood_birthweight %>%
+  dplyr::filter(iare_name %in% iare_names) %>%
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = birthweight_n,
+               text_pos   = 3.5,
+               y_label    = birthweight_n_label,
+               y_max      = NA,
+               y_breaks   = 25,
+               y_expand   = 5,
+               y_title    = "Number of live births",
+               plot_tag   = "A")
+
+figure_percent <- childhood_birthweight %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "Yes",
+               y_variable = birthweight_prop,
+               text_pos   = 3.5,
+               y_label    = birthweight_prop_label,
+               y_max      = 100,
+               y_breaks   = 10,
+               y_expand   = 1,
+               y_title    = "Percentage of live births",
+               plot_tag   = "B") %>% 
+  #
+  f_graph_ctg_target(ctg_target = 91)
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [PHIDU Social Health Atlas](https://phidu.torrens.edu.au/social-health-atlases), compiled from the [National Perinatal Data Collection](https://www.aihw.gov.au/about-our-data/our-data-collections/national-perinatal-data-collection). Data are aggregated for a three-year period (2019-2021).
+
+- The PHIDU Social Health Atlas is a compendium of demographic, social, health status, and health service utilisation indicators compiled by Torrens University Australia from a wide range of national, jurisdictional, and regional data sources.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- IAREs that are partly or entirely within the NEPHU catchment include: Craigieburn - Sunbury (Craigieburn), Knox, Maroondah, Melbourne - East (Melbourne (E)), Melbourne - North-East (Melbourne (NE)), Melbourne - Port Phillip (Port Phillip), Moreland - Broadmeadows (Broadmeadows), Northcote - Preston - Whittlesea (Northcote), Whitehorse, and Yarra Ranges.
+
+- IAREs marked with * have data suppressed due to small numbers.
+
+- Low birthweight is defined as a liveborn baby weighing less than 2,500g at birth.
+
+- The Closing the Gap Target (91%) is marked with a dashed blue line in Chart B.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-3
+f_caption_table("Number and percentage of singleton live births with a birthweight above 2,500g for babies born to women who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 2019-2021")
+
+childhood_birthweight %>% 
+  dplyr::select(iare_name,
+                birthweight_n_label,
+                birthweight_total_label,
+                birthweight_prop_label) %>%
+  #
+  f_table_iare(table_headers = c("Birthweight\nabove 2,500g", "Number of live births", "% of live births"),
+               last_column   = 4)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [PHIDU Social Health Atlas](https://phidu.torrens.edu.au/social-health-atlases), compiled from the [National Perinatal Data Collection](https://www.aihw.gov.au/about-our-data/our-data-collections/national-perinatal-data-collection). Data are aggregated for a three-year period (2019-2021).
+
+- The PHIDU Social Health Atlas is a compendium of demographic, social, health status, and health service utilisation indicators compiled by Torrens University Australia from a wide range of national, jurisdictional, and regional data sources.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- IAREs that are partly or entirely within the NEPHU catchment include: Craigieburn - Sunbury, Knox, Maroondah, Melbourne - East, Melbourne - North-East, Melbourne - Port Phillip, Moreland - Broadmeadows, Northcote - Preston - Whittlesea, Whitehorse, and Yarra Ranges.
+
+- IAREs marked with * have data suppressed due to small numbers.
+
+- Low birthweight is defined as a liveborn baby weighing less than 2,500g at birth.
+:::
+
+\newpage
+
+```{r}
+# Figure 6A-4
+f_caption_figure("Percentage of singleton live births with a birthweight below 2,500g, Victoria, by Aboriginal and/or Torres Strait Islander status of mother and year, 2011-2020")
+
+childhood_birthweight_year %>%
+  f_graph_line_comparison(y_variable = percent,
+                          y_max      = 20,
+                          y_breaks   = 2,
+                          y_expand   = 0.25,
+                          y_title    = "Percentage of live births")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [AIHW Aboriginal and Torres Strait Islander Performance Framework](https://www.indigenoushpf.gov.au/), compiled from the [National Perinatal Data Collection](https://www.aihw.gov.au/about-our-data/our-data-collections/national-perinatal-data-collection).
+
+- The AIHW Aboriginal and Torres Strait Islander Framework brings together information from a wide range of national, jurisdictional, and regional data sources to report on determinants of health, health outcomes, and health system performance for Aboriginal and/or Torres Strait Islander peoples.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Low birthweight is defined as a liveborn baby weighing less than 2,500g at birth.
+:::
+
+```{r}
+# Table 6A-4
+f_caption_table("Percentage of singleton live births with a birthweight below 2,500g, Victoria, by Aboriginal and/or Torres Strait Islander status of mother and year, 2011-2020")
+
+childhood_birthweight_year %>% 
+  tidyr::pivot_wider(names_from = "indigenous_status",
+                     values_from = "percent") %>% 
+  #
+  f_table_rate_year() %>% 
+  #
+  flextable::set_header_labels(values = c("Year", "Yes (%)", "No (%)"))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [AIHW Aboriginal and Torres Strait Islander Performance Framework](https://www.indigenoushpf.gov.au/), compiled from the [National Perinatal Data Collection](https://www.aihw.gov.au/about-our-data/our-data-collections/national-perinatal-data-collection).
+
+- The AIHW Aboriginal and Torres Strait Islander Framework brings together information from a wide range of national, jurisdictional, and regional data sources to report on determinants of health, health outcomes, and health system performance for Aboriginal and/or Torres Strait Islander peoples.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Low birthweight is defined as a liveborn baby weighing less than 2,500g at birth.
+:::
+
+## Breastfeeding
+
+```{r, include = FALSE}
+# ---------------------------------------------------------------------------------
+# Breastfeeding
+# Data from AIHW Aboriginal and Torres Strait Islander Health Performance Framework
+# ---------------------------------------------------------------------------------
+# Read in AIHW data
+childhood_breastfed <- readxl::read_excel(file.path(root_folder, subfolder_framework, "220-Breastfeeding-practices.xlsx"),
+                                          sheet        = "D2.20.6",
+                                          skip         = 1,
+                                          trim_ws      = TRUE,
+                                          .name_repair = "universal_quiet") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::select(breastfed = x1,
+                aboriginal_prop = vic,
+                non_aboriginal_prop = x5) %>% 
+  #
+  dplyr::filter(row_number() %in% c(4, 7:10, 12))
+
+childhood_breastfed_totals <- readxl::read_excel(file.path(root_folder, subfolder_framework, "220-Breastfeeding-practices.xlsx"),
+                                          sheet        = "D2.20.6",
+                                          skip         = 1,
+                                          trim_ws      = TRUE,
+                                          .name_repair = "universal_quiet") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::select(breastfed = x1,
+                aboriginal_prop = vic,
+                non_aboriginal_prop = x5) %>% 
+  #
+  dplyr::filter(row_number() == 14) %>% 
+  #
+  dplyr::mutate(aboriginal_prop     = as.numeric(gsub("[^0-9.]", "", aboriginal_prop)),
+                non_aboriginal_prop = as.numeric(gsub("[^0-9.]", "", non_aboriginal_prop)))
+
+# Data wrangling
+childhood_breastfed <- childhood_breastfed %>% 
+  dplyr::mutate(
+    aboriginal_prop     = as.numeric(gsub("[^0-9.]", "", aboriginal_prop)),
+    non_aboriginal_prop = as.numeric(gsub("[^0-9.]", "", non_aboriginal_prop)),
+    #
+    aboriginal_estimate     = round(aboriginal_prop * childhood_breastfed_totals$aboriginal_prop[1] / 100, digits = 0),
+    non_aboriginal_estimate = round(non_aboriginal_prop * childhood_breastfed_totals$non_aboriginal_prop[1] / 100, digits = 0),
+    #
+    breastfed = factor(dplyr::case_when(
+      breastfed == "Currently breastfed"      ~ "Currently breastfed",
+      breastfed == "Less than 1 month"        ~ "< 1 month",
+      breastfed == "1 to less than 6 months"  ~ "1-6 months",
+      breastfed == "6 to less than 12 months" ~ "6-12 months",
+      breastfed == "12 months or more"        ~ "12+ months",
+      #
+      TRUE ~ "Never breastfed"),
+      #
+      levels = c("Never breastfed",
+                 "< 1 month",
+                 "1-6 months",
+                 "6-12 months",
+                 "12+ months",
+                 "Currently breastfed"))) %>% 
+  #
+  dplyr::select(breastfed,
+                aboriginal_estimate, aboriginal_prop,
+                non_aboriginal_estimate, non_aboriginal_prop) %>% 
+  #
+  dplyr::arrange(breastfed)
+```
+
+::: {custom-style="Dotpt"}
+- 17% of Aboriginal and/or Torres Strait Islander children in Victoria aged 0-2 years were currently being breastfed at the time of survey (2018-19) and 60% had ever been breastfed.
+
+- Aboriginal and/or Torres Strait Islander children were less likely to be breastfed than non-Aboriginal and/or Torres Strait Islander children.
+:::
+
+```{r}
+# Figure 6A-5
+f_caption_figure("Breastfeeding duration for children aged 0-2 years, Victoria, by Aboriginal and/or Torres Strait Islander status, 2018-2019")
+
+childhood_breastfed %>% 
+  dplyr::select(-aboriginal_estimate,
+                -non_aboriginal_estimate) %>% 
+  #
+  tidyr::pivot_longer(c(aboriginal_prop, non_aboriginal_prop),
+                      names_to  = "comparison",
+                      values_to = "percent") %>% 
+  #
+  dplyr::mutate(
+    comparison = factor(dplyr::case_when(
+      comparison == "aboriginal_prop"     ~ "Yes",
+      comparison == "non_aboriginal_prop" ~ "No",
+      TRUE ~ NA_character_),
+      #
+      levels = c("Yes", "No"))) %>% 
+  #
+  ggplot() +
+  #
+  geom_col(aes(x = breastfed, y = percent, group = comparison, fill = comparison),
+           col      = colour_gray,
+           position = "dodge") +
+  #
+  scale_fill_manual(values = c(colour_lightblue, colour_burgundy),
+                    labels = c("Yes", "No"),
+                    name = "Identifies as Aboriginal and/or Torres Strait Islander:") +
+  #
+  scale_y_continuous(limits = c(0, 100),
+                     breaks = scales::breaks_width(10),
+                     expand = expansion(add = c(0, 1))) +
+  #
+  labs(x = NULL,
+       y = "Percentage of children") +
+  #
+  theme_classic() +
+  #
+  theme(legend.title       = element_text(size = 9),
+        legend.position    = "bottom",
+        legend.location    = "plot",
+        legend.box.spacing = unit(0, "pt"),
+        legend.margin      = margin(c(10, 0, 0, 0)),
+        #
+        axis.title = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [AIHW Aboriginal and Torres Strait Islander Performance Framework](https://www.indigenoushpf.gov.au/), compiled from the [2018-2019 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release) and the [2017-18 ABS National Health Survey](https://www.abs.gov.au/statistics/health/health-conditions-and-risks/national-health-survey/latest-release).
+
+- The AIHW Aboriginal and Torres Strait Islander Framework brings together information from a wide range of national, jurisdictional, and regional data sources to report on determinants of health, health outcomes, and health system performance for Aboriginal and/or Torres Strait Islander peoples.
+
+- The 2018-19 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- The 2017-18 ABS National Health Survey collected information from Australian residents of all ages living in private dwellings in both urban and rural areas of all Australian states and territories, including very remote communities and discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Survey data do not represent exact numbers of people. As only a sample of people were surveyed, their results were converted into estimates for the entire population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Percentages may not add up to 100 due to small cell suppression, data masking, and rounding.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- Reliable estimates for this indicator are only available at a statewide level.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-5
+f_caption_table("Breastfeeding duration for children aged 0-2 years, Victoria, by Aboriginal and/or Torres Strait Islander status, 2018-2019")
+
+childhood_breastfed %>% 
+  janitor::adorn_totals() %>% 
+  #
+  dplyr::mutate(
+    aboriginal_estimate     = round(aboriginal_estimate, digits = -2),
+    non_aboriginal_estimate = round(non_aboriginal_estimate, digits = -2),
+    #
+    aboriginal_prop = dplyr::case_when(
+      breastfed == "Total" ~ 100,
+      TRUE ~ aboriginal_prop),
+    #
+    non_aboriginal_prop = dplyr::case_when(
+      breastfed == "Total" ~ 100,
+      TRUE ~ non_aboriginal_prop)) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Breastfeeding duration", 
+                                          "Estimate", "Percent", 
+                                          "Estimate", "Percent")) %>%
+  #
+  flextable::add_header_row(values    = c(" ", 
+                                          "Identified as\nAboriginal and/or\nTorres Strait Islander", 
+                                          "Did not identify as\nAboriginal and/or\nTorres Strait Islander"),
+                            colwidths = c(1, 2, 2)) %>%
+  #
+  flextable::align(i = 1,
+                   align = "center",
+                   part  = "header") %>%
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:5),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::bold(i = 7) %>%
+  #
+  flextable::hline(i = 6,
+                   border = fp_border_default(width = 2)) %>%
+  #
+  flextable::autofit() %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [AIHW Aboriginal and Torres Strait Islander Performance Framework](https://www.indigenoushpf.gov.au/), compiled from the [2018-2019 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release) and the [2017-18 ABS National Health Survey](https://www.abs.gov.au/statistics/health/health-conditions-and-risks/national-health-survey/latest-release).
+
+- The AIHW Aboriginal and Torres Strait Islander Framework brings together information from a wide range of national, jurisdictional, and regional data sources to report on determinants of health, health outcomes, and health system performance for Aboriginal and/or Torres Strait Islander peoples.
+
+- The 2018-19 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- The 2017-18 ABS National Health Survey collected information from Australian residents of all ages living in private dwellings in both urban and rural areas of all Australian states and territories, including very remote communities and discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Survey data do not represent exact numbers of people. As only a sample of people were surveyed, their results were converted into estimates for the entire population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Percentages may not add up to 100 due to small cell suppression, data masking, and rounding.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- Reliable estimates for this indicator are only available at a statewide level.
+:::
+
+\newpage
+
+# Early Childhood
+
+## Preschool
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 3: By 2025, increase the proportion of Aboriginal and Torres Strait Islander children enrolled in Year Before Full-Time Schooling (YBFS) early childhood education to 95%.
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Preschool enrollments ----
+# Data from Victorian Child and Adolescent Monitoring System
+# ------------------------------------------------------------------------------
+# Read in VCAMS data
+childhood_enrol <- readxl::read_xlsx(file.path(root_folder, subfolder_vcams, "VCAMS_indicator_4_3c.xlsx"), 
+                                     sheet        = "4.3c 2018 onwards", 
+                                     trim_ws      = TRUE, 
+                                     .name_repair = "universal_quiet") %>% 
+  #
+  janitor::clean_names()
+
+# Data wrangling
+childhood_enrol <- childhood_enrol %>%
+  dplyr::select(year,
+                aboriginal_n = numerator,
+                aboriginal_prop = indicator_calc) %>% 
+  #
+  dplyr::mutate(aboriginal_prop = aboriginal_prop * 100)
+
+# ------------------------------------------------------------------------------
+# Preschool attendance ----
+# Data from National Early Childhood Education and Care Collection
+# ------------------------------------------------------------------------------
+# Read in NECECC data
+childhood_attendance <- readxl::read_excel(file.path(root_folder, subfolder_ctg,
+                                                     "CTG03_Childhood_Education_Data_Tables.xlsx"),
+                                           skip  = 1,
+                                           sheet = "Table SE3a.1") %>% 
+    janitor::clean_names() %>% 
+    #
+    dplyr::rename(value = x3,
+                  indigenous_status = x4,
+                  year = x5,
+                  attendance = x6) %>%
+    #
+    tidyr::fill(value, indigenous_status, year, attendance) %>% 
+    #
+    dplyr::filter(!is.na(vic)) %>%
+    #
+    dplyr::select(value,
+                  year,
+                  indigenous_status,
+                  attendance,
+                  vic)
+
+# Data wrangling
+childhood_attendance <- childhood_attendance %>% 
+  dplyr::mutate(vic = as.numeric(vic),
+                #
+                attendance = factor(dplyr::case_when(
+                  attendance == "Did not attend"            ~ "Did not attend",
+                  attendance == "One to less than 10 hours" ~ "<10 hours",
+                  attendance == "10–14 hours"               ~ "10-14 hours",
+                  attendance == "15 hours or more"          ~ "15+ hours",
+                  #
+                  TRUE ~ NA_character_),
+                  #
+                  levels = c("Did not attend",
+                             "<10 hours",
+                             "10-14 hours",
+                             "15+ hours")))
+```
+
+::: {custom-style="Dotpt"}
+- In 2022, 100% of Aboriginal and/or Torres Strait Islander children in Victoria who were in the year before full-time schooling age cohort were enrolled in a funded kindergarten/preschool program.
+
+- This is above the Closing the Gap target of 95%.
+
+- The percentage of enrolled children who attended for 15 or more hours in a week increased from 64% in 75% in 2023.
+:::
+
+```{r}
+# Figure 6A-6
+f_caption_figure("Percentage of Aboriginal and/or Torres Strait Islander children enrolled in a preschool program, Victoria, 2018-2022")
+
+ggplot(childhood_enrol) +
+  #
+  geom_line(aes(x = year, y = aboriginal_prop),
+            linewidth = 1.5,
+            colour    = colour_lightblue) +
+  #
+  scale_y_continuous(limits = c(0, 100),
+                     breaks = scales::breaks_width(10),
+                     expand = expansion(add = c(0, 5))) +
+  #
+  labs(x = NULL,
+       y = "Percentage of children") +
+  #
+  theme_classic() +
+  #
+  theme(axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Victorian Child and Adolescent Monitoring System (VCAMS)](https://www.vic.gov.au/victorian-child-and-adolescent-monitoring-system-vcams), and are only available at a statewide level.
+
+- VCAMS brings together data from a wide range of sources about early childhood, family functioning, and communities to monitor and report against the indicators in the VCAMS Outcomes Framework.
+
+- This indicator uses the "year before school" population as the denominator. This is a proportion of all 4 and 5 year old children which reflects the age composition of the cohort of children who are in the year before starting school during a single calendar year. These calculations are based on the [ABS Estimated Residential Population](https://www.abs.gov.au/statistics/people/population/population-projections-australia/2022-base-2071), which takes into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-6
+f_caption_table("Number and percentage of Aboriginal and/or Torres Strait Islander children enrolled in a preschool program, Victoria, 2018-2022")
+
+childhood_enrol %>% 
+  dplyr::mutate(year = as.character(year)) %>%
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Year", "Number of\nchildren", "Percentage\nof children")) %>%
+  #
+  flextable::valign(valign = "bottom",
+                    part   = "header") %>% 
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "all") %>%
+  #
+  flextable::align(j = c(2:3),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>% 
+  #
+  flextable::width(j = 1,
+                   width = 1.0) %>%
+  #
+  flextable::width(j = 2:3,
+                   width = 1.75) %>% 
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Victorian Child and Adolescent Monitoring System (VCAMS)](https://www.vic.gov.au/victorian-child-and-adolescent-monitoring-system-vcams), and are only available at a statewide level.
+
+- VCAMS brings together data from a wide range of sources about early childhood, family functioning, and communities to monitor and report against the indicators in the VCAMS Outcomes Framework.
+
+- This indicator uses the "year before school" population as the denominator. This is a proportion of all 4 and 5 year old children which reflects the age composition of the cohort of children who are in the year before starting school during a single calendar year. These calculations are based on the [ABS Estimated Residential Population](https://www.abs.gov.au/statistics/people/population/population-projections-australia/2022-base-2071), which takes into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+:::
+
+```{r}
+# Figure 6A-7
+f_caption_figure("Preschool attendance during the one week reference period for Aboriginal and/or Torres Strait Islander children enrolled in a preschool program, Victoria, 2016-2023")
+
+childhood_attendance %>% 
+  dplyr::filter(indigenous_status == "Aboriginal and Torres Strait Islander children") %>% 
+  #
+  dplyr::filter(value == "Proportion") %>%
+  #
+  ggplot() +
+  #
+  geom_col(aes(x = year, y = vic, fill = attendance),
+           col = colour_gray) +
+  #
+  scale_y_continuous(limits = c(0, 100),
+                     breaks = scales::breaks_width(10),
+                     expand = expansion(add = c(0, 1))) +
+  #
+  scale_fill_manual(values = c(colour_yellow, colour_orange, colour_green, colour_lightblue),
+                    labels = c("Did not attend", "<10 hours", "10-14 hours", "15+ hours"),
+                    name   = NULL) +
+  #
+  labs(x = NULL,
+       y = "Percentage of children") +
+  #
+  theme_classic() +
+  #
+  theme(legend.title       = element_text(size = 9),
+        legend.location    = "plot",
+        legend.position    = "bottom",
+        legend.box.spacing = unit(5, "pt"),
+        legend.margin      = margin(c(0, 0, 0, 0)),
+        #
+        axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0))) +
+  #
+  guides(fill = guide_legend(reverse = TRUE))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [National Early Childhood Education and Care Collection (NECECC)](https://www.abs.gov.au/statistics/people/education/preschool-education/latest-release).
+
+- The Closing the Gap Information Repository brings together data from a wide range of data sources to provide up to date for on each Closing the Gap target, indicator, and contextual factors.
+
+- The NECECC collates data on preschool enrollments, attendance, and service providers from the Australian Government, state and territory education departments, and the Catholic Education Office of the Archdiocese of Canberra and Goulburn. The NECEEC conducts an annual census on the first Friday in August, with the reference week for data collection being the week before the census date.
+
+- Aboriginal and/or Torres Strait Islander children are defined as those who were identified as Aboriginal and/or Torres Strait Islander by a parent or guardian.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Reliable estimates for this indicator are only available at a statewide level.
+
+- Data are not available for 2020 and 2021 due to the impact of COVID restrictions on preschool program delivery in Victoria.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-7
+f_caption_table("Preschool attendance during the one week reference period for Aboriginal and/or Torres Strait Islander children enrolled in a preschool program, Victoria, 2016-2023")
+
+childhood_attendance %>% 
+  dplyr::filter(indigenous_status == "Aboriginal and Torres Strait Islander children") %>% 
+  #
+  dplyr::arrange(year) %>% 
+  #
+  tidyr::pivot_wider(names_from  = "value",
+                     values_from = "vic") %>%
+  #
+  tidyr::pivot_wider(names_from  = "attendance",
+                     values_from = c("Number", "Proportion"),
+                     names_vary  = "slowest") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::select(-indigenous_status) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::colformat_double(na_str = "-") %>% 
+  #
+  flextable::colformat_double(j = c(2, 4, 6, 8),
+                              digits = 0,
+                              na_str = "-") %>% 
+  #
+  flextable::set_header_labels(values = c("Year", 
+                                          "n", "%", 
+                                          "n", "%",
+                                          "n", "%", 
+                                          "n", "%")) %>%
+  #
+  flextable::add_header_row(values    = c(" ", 
+                                          "Attended\n15+ hours", 
+                                          "Attended\n10-14 hours",
+                                          "Attended\n<10 hours",
+                                          "Did not attend"),
+                            colwidths = c(1, 2, 2, 2, 2)) %>%
+  #
+  flextable::align(i = 1,
+                   align = "center",
+                   part  = "header") %>%
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:9),
+                   align = "right",
+                   part  = "all") %>%
+  #
+  flextable::align(i = 1,
+                   align = "center",
+                   part  = "header") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::autofit() %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [National Early Childhood Education and Care Collection (NECECC)](https://www.abs.gov.au/statistics/people/education/preschool-education/latest-release).
+
+- The Closing the Gap Information Repository brings together data from a wide range of data sources to provide up to date for on each Closing the Gap target, indicator, and contextual factors.
+
+- The NECECC collates data on preschool enrollments, attendance, and service providers from the Australian Government, state and territory education departments, and the Catholic Education Office of the Archdiocese of Canberra and Goulburn. The NECEEC conducts an annual census on the first Friday in August, with the reference week for data collection being the week before the census date.
+
+- Aboriginal and/or Torres Strait Islander children are defined as those who were identified as Aboriginal and/or Torres Strait Islander by a parent or guardian.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Reliable estimates for this indicator are only available at a statewide level.
+
+- Data are not available for 2020 and 2021 due to the impact of COVID restrictions on preschool program delivery in Victoria.
+:::
+
+\newpage
+
+## Early Childhood Development
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 4: By 2031, increase the proportion of Aboriginal and/or Torres Strait Islander children assessed as developmentally on track in all five domains of the Australian Early Development Census (AEDC) to 55%.
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Early childhood development ----
+# Data from Australian Early Development Census via CtG Information Repository
+# ------------------------------------------------------------------------------
+# Read in AEDC data
+childhood_develop <- readxl::read_excel(file.path(root_folder, subfolder_ctg,
+                                                  "CTG04_Early_Years_Data_Tables.xlsx"),
+                                        skip  = 1,
+                                        sheet = "Table CtG4A.1") %>% 
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(indigenous_status = x3,
+                year = x4) %>%
+  #
+  tidyr::fill(indigenous_status, year) %>%
+  #
+  dplyr::filter(row_number() %in% 1:14) %>%
+  dplyr::filter(!is.na(vic)) %>% 
+  #
+  dplyr::select(indigenous_status,
+                year,
+                vic)
+
+# Data wrangling
+childhood_develop <- childhood_develop %>% 
+  dplyr::mutate(vic  = as.numeric(vic),
+                year = dplyr::case_when(year == "2009 (b)" ~ "2009",
+                                        TRUE ~ year))
+```
+
+::: {custom-style="Dotpt"}
+- In 2021, 36% of Aboriginal and/or Torres Strait Islander children in Victoria who were assessed during their first year of school were developmentally on track for all five AEDC domains.
+
+- This is below the Closing the Gap target of 55%, and lower than for non-Aboriginal and/or Torres Strait Islander children (n = 58%).
+:::
+
+```{r}
+# Figure 6A-8
+f_caption_figure("Percentage of children assessed as developmentally on track for all five AEDC domains, Victoria, by Aboriginal and/or Torres Strait Islander status, 2009-2021")
+
+childhood_develop %>% 
+  f_graph_line_comparison(y_variable = vic,
+                          y_max      = 100,
+                          y_breaks   = 10,
+                          y_expand   = 1,
+                          y_title    = "Percentage of children")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [2021 Australian Early Development Census (AEDC)](https://www.aedc.gov.au/).
+
+- The Closing the Gap Information Repository brings together data from a wide range of data sources to provide up to date for on each Closing the Gap target, indicator, and contextual factors.
+
+- The AEDC is a population-based measure of children’s development as they enter their first year of full-time school. It measures five important domains of early childhood development: physical health and wellbeing, social competence, emotional maturity, language and cognitive skills, and communication skills and general knowledge.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Reliable estimates for this indicator are only available at a statewide level.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-8
+f_caption_table("Percentage of children assessed as developmentally on track for all five AEDC domains, Victoria, by Aboriginal and/or Torres Strait Islander status, 2009-2021")
+
+childhood_develop %>% 
+  tidyr::pivot_wider(names_from  = "indigenous_status",
+                     values_from = "vic") %>% 
+  #
+  dplyr::arrange(year) %>% 
+  #
+  f_table_rate_year() %>% 
+  #
+  flextable::set_header_labels(values = c("Year", "Yes\n(%)", "No\n(%)"))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [2021 Australian Early Development Census (AEDC)](https://www.aedc.gov.au/).
+
+- The Closing the Gap Information Repository brings together data from a wide range of data sources to provide up to date for on each Closing the Gap target, indicator, and contextual factors.
+
+- The AEDC is a population-based measure of children’s development as they enter their first year of full-time school. It measures five important domains of early childhood development: physical health and wellbeing, social competence, emotional maturity, language and cognitive skills, and communication skills and general knowledge.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Reliable estimates for this indicator are only available at a statewide level.
+:::
+
+\newpage
+
+# Childhood Numeracy and Literacy
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Childhood literacy - reading
+# Data from NAPLAN
+# ------------------------------------------------------------------------------
+# Read in NAPLAN data
+naplan_reading <- f_read_naplan(data_sheet = "Table SE5c.1")
+
+# ------------------------------------------------------------------------------
+# Childhood literacy - writing
+# Data from NAPLAN
+# ------------------------------------------------------------------------------
+# Read in NAPLAN data
+naplan_writing <- f_read_naplan(data_sheet = "Table SE5c.2")
+
+# ------------------------------------------------------------------------------
+# Childhood numeracy
+# Data from NAPLAN
+# ------------------------------------------------------------------------------
+# Read in NAPLAN data
+naplan_numeracy <- f_read_naplan(data_sheet = "Table SE5c.3")
+```
+
+
+```{r, include = FALSE}
+# 
+reading_comparison <- naplan_reading %>% 
+  dplyr::filter(achievement %in% c("Exceeding", "Strong", "Developing")) %>% 
+  #
+  dplyr::group_by(indigenous_status, grade) %>% 
+  dplyr::summarise(total = sum(vic)) %>% 
+  dplyr::ungroup() %>% 
+  #
+  tidyr::pivot_wider(names_from  = "indigenous_status",
+                     values_from = "total")
+
+writing_comparison <- naplan_writing %>% 
+  dplyr::filter(achievement %in% c("Exceeding", "Strong", "Developing")) %>% 
+  #
+  dplyr::group_by(indigenous_status, grade) %>% 
+  dplyr::summarise(total = sum(vic)) %>% 
+  dplyr::ungroup() %>% 
+  #
+  tidyr::pivot_wider(names_from  = "indigenous_status",
+                     values_from = "total")
+
+numeracy_comparison <- naplan_numeracy %>% 
+  dplyr::filter(achievement %in% c("Exceeding", "Strong", "Developing")) %>% 
+  #
+  dplyr::group_by(indigenous_status, grade) %>% 
+  dplyr::summarise(total = sum(vic)) %>% 
+  dplyr::ungroup() %>% 
+  #
+  tidyr::pivot_wider(names_from  = "indigenous_status",
+                     values_from = "total")
+```
+
+::: {custom-style="Dotpt"}
+- In 2024, 75% of Victorian Aboriginal and/or Torres Strait Islander children in Year 3, 78% of Victorian Aboriginal and/or Torres Strait Islander children in Year 5, 74% of Victorian Aboriginal and/or Torres Strait Islander children in Year 7, and 72% of Victorian Aboriginal and/or Torres Strait Islander children in Year 9 were at or above the NAPLAN reading minimum standard (exceeding, strong, or developing). This is lower than for non-Aboriginal and/or Torres Strait Islander children at each year level (Year 3 = 90%, Year 5 = 93%, Year 7 = 92%, Year 9 = 90%).
+
+- In 2024, 81% of Victorian Aboriginal and/or Torres Strait Islander children in Year 3, 78% of Victorian Aboriginal and/or Torres Strait Islander children in Year 5, 75% of Victorian Aboriginal and/or Torres Strait Islander children in Year 7, and 72% of Victorian Aboriginal and/or Torres Strait Islander children in Year 9 were at or above the NAPLAN writing minimum standard (exceeding, strong, or developing). This is lower than for non-Aboriginal and/or Torres Strait Islander children at each year level (Year 3 = 94%, Year 5 = 93%, Year 7 = 92%, Year 9 = 90%).
+
+- In 2024, 75% of Victorian Aboriginal and/or Torres Strait Islander children in Year 3, 75% of Victorian Aboriginal and/or Torres Strait Islander children in Year 5, 72% of Victorian Aboriginal and/or Torres Strait Islander children in Year 7, and 69% of Victorian Aboriginal and/or Torres Strait Islander children in Year 9 were at or above the NAPLAN numeracy minimum standard (exceeding, strong, or developing). This is lower than for non-Aboriginal and/or Torres Strait Islander children at each year level (Year 3 = 91%, Year 5 = 92%, Year 7 = 91%, Year 9 = 90%).
+:::
+
+\newpage
+
+```{r}
+# Figure 6A-9
+f_caption_figure("Student achievement in reading for Aboriginal and/or Torres Strait Islander children, Victoria, by NAPLAN proficiency level, 2024")
+
+naplan_reading %>%
+  dplyr::filter(indigenous_status == "Aboriginal and Torres Strait Islander students") %>% 
+  #
+  f_graph_naplan()
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [National Assessment Program — Literacy and Numeracy (NAPLAN) program](https://www.acara.edu.au/reporting/national-report-on-schooling-in-australia/naplan-national-results), administered by the Australian Curriculum, Assessment, and Reporting Authority (ACARA).
+
+- NAPLAN is a national assessment that tests students' ability in three domains of literacy (reading, writing, and language conventions) and in numeracy. Students sit NAPLAN tests in Term 1 of Years 3, 5, 7, and 9.
+
+- The NAPLAN proficiencies include four levels for each assessment area at each year level:
+
+  - Exceeding: the student’s result exceeds expectations at the time of testing.
+
+  - Strong: the student’s result meets challenging but reasonable expectations at the time of testing.
+
+  - Developing: the student’s result indicates that they are working towards expectations at the time of testing.
+
+  - Needs additional support: the student’s result indicates that they are not achieving the learning outcomes expected at the time of testing. They are likely to need additional support to progress satisfactorily.
+
+- Students with a language background other than English, who arrived from overseas less than a year before the tests, and those with significant disabilities may be exempted from NAPLAN testing.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Percentages may not add up to 100 due to small cell suppression, data masking, and rounding.
+
+- Reliable estimates for this indicator are only available at the statewide level.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-9
+f_caption_table("Percentage of Aboriginal and/or Torres Strait Islander children at each NAPLAN reading proficiency level, Victoria, 2024")
+
+naplan_reading %>%
+  dplyr::filter(indigenous_status == "Aboriginal and Torres Strait Islander students") %>%
+  #
+  dplyr::select(-indigenous_status) %>% 
+  #
+  f_table_naplan()
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [National Assessment Program — Literacy and Numeracy (NAPLAN) program](https://www.acara.edu.au/reporting/national-report-on-schooling-in-australia/naplan-national-results), administered by the Australian Curriculum, Assessment, and Reporting Authority (ACARA).
+
+- NAPLAN is a national assessment that tests students' ability in three domains of literacy (reading, writing, and language conventions) and in numeracy. Students sit NAPLAN tests in Term 1 of Years 3, 5, 7, and 9.
+
+- The NAPLAN proficiencies include four levels for each assessment area at each year level:
+
+  - Exceeding: the student’s result exceeds expectations at the time of testing.
+
+  - Strong: the student’s result meets challenging but reasonable expectations at the time of testing.
+
+  - Developing: the student’s result indicates that they are working towards expectations at the time of testing.
+
+  - Needs additional support: the student’s result indicates that they are not achieving the learning outcomes expected at the time of testing. They are likely to need additional support to progress satisfactorily.
+
+- Students with a language background other than English, who arrived from overseas less than a year before the tests, and those with significant disabilities may be exempted from NAPLAN testing.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Percentages may not add up to 100 due to small cell suppression, data masking, and rounding.
+
+- Reliable estimates for this indicator are only available at the statewide level.
+:::
+
+\newpage
+
+```{r}
+# Figure 6A-10
+f_caption_figure("Student achievement in writing for Aboriginal and/or Torres Strait Islander children, Victoria, by NAPLAN proficiency level, 2024")
+
+naplan_writing %>%
+  dplyr::filter(indigenous_status == "Aboriginal and Torres Strait Islander students") %>%
+  #
+  f_graph_naplan()
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [National Assessment Program — Literacy and Numeracy (NAPLAN) program](https://www.acara.edu.au/reporting/national-report-on-schooling-in-australia/naplan-national-results), administered by the Australian Curriculum, Assessment, and Reporting Authority (ACARA).
+
+- NAPLAN is a national assessment that tests students' ability in three domains of literacy (reading, writing, and language conventions) and in numeracy. Students sit NAPLAN tests in Term 1 of Years 3, 5, 7, and 9.
+
+- The NAPLAN proficiencies include four levels for each assessment area at each year level:
+
+  - Exceeding: the student’s result exceeds expectations at the time of testing.
+
+  - Strong: the student’s result meets challenging but reasonable expectations at the time of testing.
+
+  - Developing: the student’s result indicates that they are working towards expectations at the time of testing.
+
+  - Needs additional support: the student’s result indicates that they are not achieving the learning outcomes expected at the time of testing. They are likely to need additional support to progress satisfactorily.
+
+- Students with a language background other than English, who arrived from overseas less than a year before the tests, and those with significant disabilities may be exempted from NAPLAN testing.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Percentages may not add up to 100 due to small cell suppression, data masking, and rounding.
+
+- Reliable estimates for this indicator are only available at the statewide level.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-10
+f_caption_table("Percentage of Aboriginal and/or Torres Strait Islander children at each NAPLAN writing proficiency level, Victoria, 2024")
+
+naplan_writing %>% 
+  dplyr::filter(indigenous_status == "Aboriginal and Torres Strait Islander students") %>%
+  #
+  dplyr::select(-indigenous_status) %>% 
+  #
+  f_table_naplan()
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [National Assessment Program — Literacy and Numeracy (NAPLAN) program](https://www.acara.edu.au/reporting/national-report-on-schooling-in-australia/naplan-national-results), administered by the Australian Curriculum, Assessment, and Reporting Authority (ACARA).
+
+- NAPLAN is a national assessment that tests students' ability in three domains of literacy (reading, writing, and language conventions) and in numeracy. Students sit NAPLAN tests in Term 1 of Years 3, 5, 7, and 9.
+
+- The NAPLAN proficiencies include four levels for each assessment area at each year level:
+
+  - Exceeding: the student’s result exceeds expectations at the time of testing.
+
+  - Strong: the student’s result meets challenging but reasonable expectations at the time of testing.
+
+  - Developing: the student’s result indicates that they are working towards expectations at the time of testing.
+
+  - Needs additional support: the student’s result indicates that they are not achieving the learning outcomes expected at the time of testing. They are likely to need additional support to progress satisfactorily.
+
+- Students with a language background other than English, who arrived from overseas less than a year before the tests, and those with significant disabilities may be exempted from NAPLAN testing.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Percentages may not add up to 100 due to small cell suppression, data masking, and rounding.
+
+- Reliable estimates for this indicator are only available at the statewide level.
+:::
+
+\newpage
+
+```{r}
+# Figure 6A-11
+f_caption_figure("Student achievement in numeracy for Aboriginal and/or Torres Strait Islander children, Victoria, by NAPLAN proficiency level, 2024")
+
+naplan_numeracy %>% 
+  dplyr::filter(indigenous_status == "Aboriginal and Torres Strait Islander students") %>%
+  #
+  f_graph_naplan()
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [National Assessment Program — Literacy and Numeracy (NAPLAN) program](https://www.acara.edu.au/reporting/national-report-on-schooling-in-australia/naplan-national-results), administered by the Australian Curriculum, Assessment, and Reporting Authority (ACARA).
+
+- NAPLAN is a national assessment that tests students' ability in three domains of literacy (reading, writing, and language conventions) and in numeracy. Students sit NAPLAN tests in Term 1 of Years 3, 5, 7, and 9.
+
+- The NAPLAN proficiencies include four levels for each assessment area at each year level:
+
+  - Exceeding: the student’s result exceeds expectations at the time of testing.
+
+  - Strong: the student’s result meets challenging but reasonable expectations at the time of testing.
+
+  - Developing: the student’s result indicates that they are working towards expectations at the time of testing.
+
+  - Needs additional support: the student’s result indicates that they are not achieving the learning outcomes expected at the time of testing. They are likely to need additional support to progress satisfactorily.
+
+- Students with a language background other than English, who arrived from overseas less than a year before the tests, and those with significant disabilities may be exempted from NAPLAN testing.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Percentages may not add up to 100 due to small cell suppression, data masking, and rounding.
+
+- Reliable estimates for this indicator are only available at the statewide level.
+:::
+
+\newpage
+
+```{r}
+# Table 6A-11
+f_caption_table("Percentage of Aboriginal and/or Torres Strait Islander children at each NAPLAN numeracy proficiency level, Victoria, 2024")
+
+naplan_numeracy %>% 
+  dplyr::filter(indigenous_status == "Aboriginal and Torres Strait Islander students") %>%
+  #
+  dplyr::select(-indigenous_status) %>% 
+  #
+  f_table_naplan()
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [National Assessment Program — Literacy and Numeracy (NAPLAN) program](https://www.acara.edu.au/reporting/national-report-on-schooling-in-australia/naplan-national-results), administered by the Australian Curriculum, Assessment, and Reporting Authority (ACARA).
+
+- NAPLAN is a national assessment that tests students' ability in three domains of literacy (reading, writing, and language conventions) and in numeracy. Students sit NAPLAN tests in Term 1 of Years 3, 5, 7, and 9.
+
+- The NAPLAN proficiencies include four levels for each assessment area at each year level:
+
+  - Exceeding: the student’s result exceeds expectations at the time of testing.
+
+  - Strong: the student’s result meets challenging but reasonable expectations at the time of testing.
+
+  - Developing: the student’s result indicates that they are working towards expectations at the time of testing.
+
+  - Needs additional support: the student’s result indicates that they are not achieving the learning outcomes expected at the time of testing. They are likely to need additional support to progress satisfactorily.
+
+- Students with a language background other than English, who arrived from overseas less than a year before the tests, and those with significant disabilities may be exempted from NAPLAN testing.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Percentages may not add up to 100 due to small cell suppression, data masking, and rounding.
+
+- Reliable estimates for this indicator are only available at the statewide level.
+:::
+

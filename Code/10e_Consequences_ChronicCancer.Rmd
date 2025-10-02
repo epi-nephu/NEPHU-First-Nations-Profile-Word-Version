@@ -1,0 +1,928 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Consequences: Cancer"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "10E Consequences Cancer ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex_vic.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_phidu_iare_hospital.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_agesex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_expected.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_iare.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_expected.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_iare.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 10E-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 10E-"))
+  
+  return(caption)
+  
+}
+```
+
+### What chronic conditions affect Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+# Cancer
+
+## Prevalence
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Cancer, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_cancer_lga <- f_read_census_lga("Aboriginal_Health_Cancer_LGA.csv",
+                                       variable = "cancer") %>% 
+  # 
+  dplyr::filter(cancer != "Not stated")
+
+# Data wrangling
+health_cancer_lga <- health_cancer_lga %>%
+  #
+  dplyr::mutate(cancer = dplyr::case_when(
+    cancer == "Has cancer (including remission)" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = cancer,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Cancer, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+health_cancer_agesex <- f_read_census_agesex("Aboriginal_Health_Cancer_AgeSex.csv",
+                                             variable = "cancer") %>% 
+  #
+  dplyr::filter(cancer != "Not stated")
+
+# Data wrangling
+health_cancer_agesex <- health_cancer_agesex %>% 
+  #
+  dplyr::mutate(cancer = dplyr::case_when(
+    cancer == "Has cancer (including remission)" ~ "yes",
+    TRUE ~ "no")) %>%  
+  #
+  f_wrangle_census_agesex(variable = cancer,
+                          dichot   = "yes")
+```
+
+
+```{r}
+#
+results <- list()
+data    <- health_cancer_lga
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 2.1% (n = 237) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census have been told by a doctor or nurse that they have cancer. This is lower than for non-Indigenous people living in the NEPHU catchment (2.8%).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who have been told by a doctor or nurse that they have cancer ranged from 41 (Yarra Ranges LGA) to 5 (Nillumbik LGA).
+
+- The gap between Aboriginal and/or Torres Strait Islander and non-Indigenous people was biggest for Darebin and Yarra Ranges LGAs.
+
+- The percentage of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who have been told by a doctor or nurse that they have cancer ranged from 3.4% (Whitehorse LGA) to 1.3% (Darebin LGA).
+
+- The number of people who have been told by a doctor or nurse that they have cancer was highest for people aged 50-59 or 60-69 years for both males and females, and the percentage of people who have been told by a doctor or nurse that they have cancer increased with increasing age.
+:::
+
+\newpage
+
+```{r}
+# Figure 10E-1
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who have been told by a doctor or nurse that they have cancer, NEPHU catchment, by LGA, 2021")
+
+figure_number <- health_cancer_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 5,
+              y_expand   = 5,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- health_cancer_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 5,
+              y_breaks   = 0.5,
+              y_expand   = 0.125,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Cancer' includes malignant neoplasms, benign neoplasms, and cancer that is in remission.
+:::
+
+\newpage
+
+```{r}
+# Figure 10E-2
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have cancer, NEPHU catchment, by LGA, 2021")
+
+health_cancer_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 5,
+                   y_expand = 1)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Cancer' includes malignant neoplasms, benign neoplasms, and cancer that is in remission.
+:::
+
+\newpage
+
+```{r}
+# Table 10E-1
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have cancer, NEPHU catchment, by LGA, 2021")
+
+health_cancer_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Cancer' includes malignant neoplasms, benign neoplasms, and cancer that is in remission.
+:::
+
+\newpage
+
+```{r}
+# Figure 10E-3
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who have been told by a doctor or nurse that they have cancer, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- health_cancer_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 30,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- health_cancer_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 25,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- health_cancer_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 30,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- health_cancer_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 25,
+                 y_breaks   = 5,
+                 y_expand   = 0.5,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Cancer' includes malignant neoplasms, benign neoplasms, and cancer that is in remission.
+:::
+
+\newpage
+
+```{r} 
+# Figure 10E-4
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have cancer, NEPHU catchment, by age and sex, 2021") 
+
+health_cancer_agesex %>%  
+  dplyr::filter(age_group %in% age_group_lvl) %>%  
+  # 
+  dplyr::mutate(age_group = factor(age_group, levels = age_group_lvl)) %>% 
+  #
+  f_graph_expected(variable = age_group, 
+                   y_breaks = 5, 
+                   y_expand = 0.5) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Cancer' includes malignant neoplasms, benign neoplasms, and cancer that is in remission.
+:::
+
+\newpage
+
+```{r} 
+# Table 10E-2
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who have been told by a doctor or nurse that they have cancer, NEPHU catchment, by age and sex, 2021") 
+
+health_cancer_agesex %>% 
+  dplyr::filter(sex == "Female") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Females",
+                   total_row      = 12)
+  
+health_cancer_agesex %>% 
+  dplyr::filter(sex == "Male") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Males",
+                   total_row      = 12)
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- 'Cancer' includes malignant neoplasms, benign neoplasms, and cancer that is in remission.
+:::
+
+\newpage
+
+## Top 10 Cancer Types
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Top 10 cancers diagnosed
+# Data from Victorian Cancer Registry
+# ------------------------------------------------------------------------------
+# Read in Cancer Registry data
+health_cancer_type <- readxl::read_excel(file.path(root_folder, subfolder_cancer, "Vic_Top10_Incidence_Deaths_Sex.xlsx"),
+                                         skip  = 4,
+                                         sheet = "VictoriaTop10Cases") %>%
+  janitor::clean_names()
+
+# Top 10 order for charts
+health_cancer_type_order <- health_cancer_type %>% 
+  dplyr::filter(cancer_type != "All Top 10" & sex == "Total") %>% 
+  dplyr::arrange(desc(n), cancer_type) %>% 
+  pull(cancer_type)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the Victorian Cancer Registry.
+
+- Between January 2018 and December 2022 the most common cancers diagnosed in Aboriginal and/or Torres Strait Islander people living in Victoria were lung cancer (n = 260), prostate cancer (n = 172), bowel cancer (n = 171), and breast cancer (n = 170).
+
+- Prostate cancer (n = 172) and lung cancer (n = 126) were the most common types diagnosed for males.
+
+- Breast cancer (n = 169) and lung cancer (n = 134) were the most common types diagnosed for females.
+:::
+
+```{r}
+# Figure 10E-5
+f_caption_figure("Top 10 cancer types diagnosed in Aboriginal and/or Torres Strait Islander people, Victoria, 2018-2022")
+
+health_cancer_type %>% 
+  dplyr::filter(cancer_type != "All Top 10" & sex == "Total") %>%
+  #
+  ggplot() + 
+  #
+  geom_col(aes(x = factor(cancer_type, levels = health_cancer_type_order), 
+               y = n),
+           #
+           fill = colour_lightblue) +
+  #
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+  #
+  scale_y_continuous(breaks = scales::breaks_width(25),
+                     expand = expansion(add = c(0, 20)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  labs(x = NULL, 
+       y = "Number of diagnoses") +
+  #
+  theme_classic() +
+  #
+  theme(axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_viccr)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- Cancer type is recorded in the Victorian Cancer Registry by converting [ICD-O-3](https://www.who.int/standards/classifications/other-classifications/international-classification-of-diseases-for-oncology) medical codes from patient records and cancer notifications to [ICD-10-AM](https://icd.who.int/browse10/2019/en) codes for malignant neoplasms. The Top 10 cancer types are from the following ICD-10-AM categories:
+
+    - Lung: C33-C34
+    
+    - Prostate (male only): C61
+    
+    - Bowel: C18-C20
+    
+    - Breast (male and female): C50
+    
+    - Head and neck: C00-C14, C30-C32
+    
+    - Melanoma: C43
+    
+    - Primary liver: C22
+    
+    - Kidney: C64
+    
+    - Pancreas: C25
+    
+    - Uterine (female only): C54-C55
+:::
+
+\newpage
+
+```{r}
+# Figure 10E-6
+f_caption_figure("Top 10 cancer types diagnosed in Aboriginal and/or Torres Strait Islander people, Victoria, by sex, 2018-2022")
+
+health_cancer_type %>% 
+  dplyr::filter(cancer_type != "All Top 10" & sex != "Total") %>%
+  #
+  ggplot() + 
+  #
+  geom_col(aes(x = factor(cancer_type, levels = health_cancer_type_order), 
+               y = n),
+           #
+           fill = colour_lightblue) +
+  #
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+  #
+  scale_y_continuous(breaks = scales::breaks_width(20),
+                     expand = expansion(add = c(0, 12)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  labs(x = NULL, 
+       y = "Number of diagnoses") +
+  #
+  theme_classic() +
+  #
+  theme(axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0))) +
+  #
+  facet_wrap(~sex)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_viccr)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- Cancer type is recorded in the Victorian Cancer Registry by converting [ICD-O-3](https://www.who.int/standards/classifications/other-classifications/international-classification-of-diseases-for-oncology) medical codes from patient records and cancer notifications to [ICD-10-AM](https://icd.who.int/browse10/2019/en) codes for malignant neoplasms. The Top 10 cancer types are from the following ICD-10-AM categories:
+
+    - Lung: C33-C34
+    
+    - Prostate (male only): C61
+    
+    - Bowel: C18-C20
+    
+    - Breast (male and female): C50
+    
+    - Head and neck: C00-C14, C30-C32
+    
+    - Melanoma: C43
+    
+    - Primary liver: C22
+    
+    - Kidney: C64
+    
+    - Pancreas: C25
+    
+    - Uterine (female only): C54-C55
+:::
+
+\newpage
+
+```{r}
+# Table 10E-3
+f_caption_table("Top 10 cancer types diagnosed in Aboriginal and/or Torres Strait Islander people, Victoria, 2018-2022")
+
+health_cancer_type %>%
+  tidyr::pivot_wider(names_from  = "sex",
+                     values_from = "n") %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::colformat_double(j = c(2:4),
+                              digits = 0,
+                              na_str = "-") %>% 
+  #
+  flextable::set_header_labels(values = c("Cancer type", "Male", "Female", "Total")) %>% 
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:4),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>% 
+  #
+  flextable::bold(i = 11) %>%
+  #
+  flextable::hline(i = 10,
+                   border = fp_border_default(width = 2)) %>% 
+  #
+  flextable::width(j = 1:4,
+                   width = 1.25) %>% 
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_viccr)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- Cancer type is recorded in the Victorian Cancer Registry by converting [ICD-O-3](https://www.who.int/standards/classifications/other-classifications/international-classification-of-diseases-for-oncology) medical codes from patient records and cancer notifications to [ICD-10-AM](https://icd.who.int/browse10/2019/en) codes for malignant neoplasms. The Top 10 cancer types are from the following ICD-10-AM categories:
+
+    - Lung: C33-C34
+    
+    - Prostate (male only): C61
+    
+    - Bowel: C18-C20
+    
+    - Breast (male and female): C50
+    
+    - Head and neck: C00-C14, C30-C32
+    
+    - Melanoma: C43
+    
+    - Primary liver: C22
+    
+    - Kidney: C64
+    
+    - Pancreas: C25
+    
+    - Uterine (female only): C54-C55
+:::
+
+\newpage
+
+## Testing for Cancer
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Testing for cancer
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+testing_cancer_male <- f_read_natsihs_sex("Indicator_Vic_Sex_Cancer_TestMale.csv") %>% 
+  dplyr::filter(sex == "Male")
+
+testing_cancer_female <- f_read_natsihs_sex("Indicator_Vic_Sex_Cancer_TestFemale.csv") %>% 
+  dplyr::filter(sex == "Female")
+
+testing_cancer <- testing_cancer_male %>% 
+  dplyr::bind_rows(testing_cancer_female) %>% 
+  #
+  dplyr::mutate(breast_n = dplyr::case_when(
+    sex == "Male" ~ 0,
+    TRUE ~ breast_n))
+
+# Data wrangling
+testing_cancer <- testing_cancer %>% 
+  dplyr::rowwise() %>%
+  dplyr::mutate(nottested_n = not_applicable_n,
+                answered_n  = total_n) %>%
+  dplyr::ungroup() %>%
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(skin_n = skin_cancer_n,
+                lung_n = lung_cancer_n,
+                cervical_n = cervical_cancer_n) %>% 
+  #
+  dplyr::mutate(across(bowel_n:nottested_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop"))
+
+testing_cancer <- testing_cancer %>% 
+  dplyr::mutate(
+    prostate_prop = dplyr::case_when(
+      iare_name == "Total" ~ testing_cancer$prostate_prop[1],
+      TRUE ~ prostate_prop),
+    #
+    cervical_prop = dplyr::case_when(
+      iare_name == "Total" ~ testing_cancer$cervical_prop[2],
+      TRUE ~ cervical_prop)) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("bowel"),
+                starts_with("breast"),
+                starts_with("cervical"),
+                starts_with("lung"),
+                starts_with("prostate"),
+                starts_with("skin"),
+                starts_with("other"),
+                starts_with("nottested"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 35% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they had been tested for cancer. This equates to approximately 13,500 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to have been tested for cancer than males (46% vs. 25%), which is likely driven by participation in cervical screening.
+
+- Prostate cancer (20%) and bowel cancer (13%) were the most common types tested for among males.
+
+- Cervical cancer (53%) and breast cancer (26%) were the most common types tested for among females.
+:::
+
+```{r}
+# Table 10E-4
+f_caption_table("Types of cancer tested for among survey respondents who had ever been tested for cancer and who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("bowel"     = "Bowel cancer",
+              "breast"    = "Breast cancer",
+              "cervical"  = "Cervical cancer",
+              "lung"      = "Lung cancer",
+              "prostate"  = "Prostate cancer",
+              "skin"      = "Skin cancer",
+              "other"     = "Other cancers",
+              "nottested" = "Never tested",
+              "answered"  = "Total")
+
+testing_cancer %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = " ",
+                     total_row      = 9) %>% 
+  #
+  flextable::colformat_double(j = c(2, 4, 6),
+                              digits = 0,
+                              na_str = "-") %>% 
+  #
+  flextable::colformat_double(j = c(3, 5, 7),
+                              digits = 1,
+                              na_str = "-")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- 'Tested for cancer' is defined as participation in breast, cervical, or bowel screening programs or undergoing diagnostic testing for cancer (biopsy, liquid cytology, imaging, cytogenetics, or tumour biomarker testing).
+
+- Survey respondents were asked whether they had ever been tested for cancer and if so, which types of cancer they had been tested for. Totals may not sum to 100% as respondents could select multiple types of cancer.
+:::
+
+\newpage
+
+## Hospital Admissions
+
+```{r}
+# ------------------------------------------------------------------------------
+# Hospitalisations - cancer
+# Data from PHIDU Social Health Atlas
+# ------------------------------------------------------------------------------
+# Read in PHIDU data
+hospital_cancer <- f_read_phidu_iare_hospital(data_sheet    = "Admissions_principal_diag",
+                                              column_select = "admissions_for_cancer_aboriginal_people")
+
+# Data wrangling
+hospital_cancer <- hospital_cancer %>% 
+  dplyr::mutate(iare_name = factor(iare_name, levels = iare_inc_vic_lvl)) %>% 
+  #
+  dplyr::select(iare_name,
+                iare_name_short,
+                starts_with("hospital")) %>% 
+  #
+  dplyr::arrange(iare_name)
+```
+
+
+```{r}
+#
+results <- list()
+
+data <- hospital_cancer %>% 
+  dplyr::rename(n     = hospital_n,
+                rate  = hospital_rate,
+                ratio = hospital_ratio)
+
+results$rank_n <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(iare_name,
+                n)
+
+results$rank_rate <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(rate)) %>% 
+  dplyr::select(iare_name,
+                rate)
+
+results$rank_ratio <- data %>% 
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  dplyr::arrange(desc(ratio)) %>% 
+  dplyr::select(iare_name,
+                ratio)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the PHIDU Social Health Atlas, compiled from the Victorian Admitted Episodes Dataset.
+
+- During the four-year period 01 July 2017 to 30 June 2021 there were 1,562 hospital admissions for cancer for Aboriginal and/or Torres Strait Islander people living in Greater Melbourne.
+
+- The number of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 207 (Northcote/Preston/Whittlesea IARE) to 28 (Maroondah IARE).
+
+- The age-standardised rate of admissions for Aboriginal and/or Torres Strait Islander people living in different IAREs within the NEPHU catchment ranged from 1,418 per 100,000 population (Melbourne/Port Phillip IARE) to 767 per 100,000 population (Maroondah IARE).
+
+- 5 of the 10 IAREs in the NEPHU catchment area had an age-standardised admission rate above the average for all Aboriginal and/or Torres Strait Islander people living in Greater Melbourne (Melbourne/Port Phillip, Yarra Ranges, Northcote/Preston/Whittlesea, Whitehorse, and Craigieburn/Sunbury IAREs).
+:::
+
+\newpage
+
+```{r}
+# Figure 10E-7
+f_caption_figure("(A) Number and (B) age-standardised rate (per 100,000 population) of hospital admissions for cancer for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+figure_number <- hospital_cancer %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_n,
+               y_max      = NA,
+               y_breaks   = 20,
+               y_expand   = 15,
+               y_title    = "Number of admissions",
+               plot_tag   = "A")
+
+figure_rate <- hospital_cancer %>%
+  dplyr::filter(iare_name %in% iare_names) %>% 
+  #
+  f_graph_iare(suppress   = "No",
+               y_variable = hospital_rate,
+               y_max      = NA,
+               y_breaks   = 200,
+               y_expand   = 10,
+               y_title    = "Age-standardised rate",
+               plot_tag   = "B")
+
+figure_number + figure_rate
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+- Admissions for 'cancer' are defined as those with a principal diagnosis code between C00-D48, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - C00-C97: Malignant neoplasms
+    
+    - D00-D09: *In situ* neoplasms
+    
+    - D10-D36: Benign neoplasms
+    
+    - D37-D48: Neoplasms of uncertain or unknown behaviour
+:::
+
+\newpage
+
+```{r}
+# Table 10E-5
+f_caption_table("Hospital admissions for cancer for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by IARE, 01 July 2017 to 30 June 2021")
+
+hospital_cancer %>% 
+  dplyr::select(-iare_name_short) %>% 
+  #
+  dplyr::mutate(hospital_rate  = round(hospital_rate, digits = 0),
+                hospital_ratio = round(hospital_ratio, digits = 1)) %>% 
+  #
+  f_table_iare(table_headers = c("Number of\nadmissions", "Age-standardised rate\n(per 100,000)", "Standardised\nratio"),
+               last_column   = 4) %>% 
+  #
+  flextable::width(j = 3,
+                   width = 1.75)
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_phidu_vaed)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_iare_nephu)`
+
+`r knitr::asis_output(note_caveat_admissions)`
+
+`r knitr::asis_output(note_caveat_iare_ratio)`
+
+- Admissions for 'cancer' are defined as those with a principal diagnosis code between C00-D48, coded using [ICD-10-AM](https://icd.who.int/browse10/2019/en). The following major categories are included:
+
+    - C00-C97: Malignant neoplasms
+    
+    - D00-D09: *In situ* neoplasms
+    
+    - D10-D36: Benign neoplasms
+    
+    - D37-D48: Neoplasms of uncertain or unknown behaviour
+:::
+

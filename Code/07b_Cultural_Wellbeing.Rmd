@@ -1,0 +1,615 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Cultural Determinants of Health: Emotional Wellbeing"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "07B Cultural Wellbeing ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+ 
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 7B-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 7B-"))
+  
+  return(caption)
+  
+}
+```
+
+### What is the level of emotional wellbeing for Aboriginal and/or Torres Strait people living in the NEPHU catchment?
+
+# Positive Wellbeing Score
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Positive wellbeing
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+wellbeing_positive <- f_read_natsihs_sex("Indicator_Vic_Sex_Resilience_PositiveWellbeing_Score.csv")
+
+# Data wrangling
+wellbeing_positive <- wellbeing_positive %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(high_75_100_n:low_0_25_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(high_n   = high_75_100_n,
+                medium_n = medium_26_74_n,
+                low_n    = low_0_25_n) %>% 
+  #
+  dplyr::mutate(across(high_n:low_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("high"),
+                starts_with("medium"),
+                starts_with("low"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 30% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne had a high level of positive wellbeing in the four weeks prior to the survey. This equates to approximately 7,700 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to have a low level of positive wellbeing than males (12% vs. 5.1%).
+:::
+
+```{r}
+# Figure 7B-1
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander and level of positive wellbeing in the four weeks prior to the survey, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- wellbeing_positive %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("high_n", "medium_n", "low_n"),
+                     x_labels   = c("High", "Medium", "Low"),
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 300,
+                     y_title    = "Estimated number of people")
+
+figure_percent <- wellbeing_positive %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("high_prop", "medium_prop", "low_prop"),
+                     x_labels   = c("High", "Medium", "Low"),
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- 'Positive wellbeing' was assessed using four questions about the respondent's experience of positive emotional states in the previous four weeks.
+
+    - Each question was measured on a scale from 1 (All of the time) to 5 (None of the time).
+
+    - Responses to the four questions were combined and scaled to produce an overall score between 0 and 100.
+    
+    - The overall positive wellbeing score was categorised as Low (0 to 25), Medium (26 to 74), or High (75 to 100).
+    
+- The positive wellbeing questions were:
+
+    - How often did you feel calm and peaceful in the past four weeks?
+    
+    - How often have you been a happy person in the past four weeks?
+    
+    - How often have you felt full of life in the past four weeks?
+    
+    - How often have you had a lot of energy in the past four weeks?
+:::
+
+\newpage
+
+```{r}
+# Table 7B-1
+f_caption_table("Level of positive wellbeing in the four weeks prior to the survey for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("high"     = "High",
+              "medium"   = "Medium",
+              "low"      = "Low",
+              "answered" = "Total")
+
+wellbeing_positive %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Positive wellbeing",
+                     total_row      = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- 'Positive wellbeing' was assessed using four questions about the respondent's experience of positive emotional states in the previous four weeks.
+
+    - Each question was measured on a scale from 1 (All of the time) to 5 (None of the time).
+
+    - Responses to the four questions were combined and scaled to produce an overall score between 0 and 100.
+    
+    - The overall positive wellbeing score was categorised as Low (0 to 25), Medium (26 to 74), or High (75 to 100).
+    
+- The positive wellbeing questions were:
+
+    - How often did you feel calm and peaceful in the past four weeks?
+    
+    - How often have you been a happy person in the past four weeks?
+    
+    - How often have you felt full of life in the past four weeks?
+    
+    - How often have you had a lot of energy in the past four weeks?
+:::
+
+\newpage
+
+# Kessler Psychological Distress Scale
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Kessler score
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+wellbeing_kessler <- f_read_natsihs_sex("Indicator_Vic_Sex_Resilience_Kessler_Score.csv")
+
+# Data wrangling
+wellbeing_kessler <- wellbeing_kessler %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(low_moderate_5_11_n:high_very_high_12_25_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(low_n  = low_moderate_5_11_n,
+                high_n = high_very_high_12_25_n) %>% 
+  #
+  dplyr::mutate(across(low_n:high_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("high"),
+                starts_with("low"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 39% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne had a very high or high level of psychological distress (Kessler 5 Score) in the four weeks prior to the survey. This equates to approximately 10,000 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to have a very high or high level of psychological distress than males (42% vs. 37%).
+:::
+
+```{r}
+# Table 7B-2
+f_caption_table("Level of psychological distress in the four weeks prior to the survey for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("high"     = "Very high/high distress",
+              "low"      = "Moderate/low distress",
+              "answered" = "Total")
+
+wellbeing_kessler %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Kessler 5 Score",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- 'Psychological distress' was assessed using the Kessler 5 Score, a measure of non-specific psychological distress.
+
+    - Five questions were asked about the respondent's experience of negative emotional states in the previous four weeks.
+    
+    - Each question was measured on a scale from 1 (All of the time) to 5 (None of the time).
+
+    - Responses to the five questions were combined to produce an overall score between 5 and 25.
+    
+    - The overall Kessler 5 Score was categorised as Low/Moderate (5 to 11) or High/Very High (12 to 25).
+    
+- The Kessler 5 questions were:
+
+    - How often did you feel nervous in the past four weeks?
+    
+    - How often did you feel without hope in the past four weeks?
+    
+    - How often did you feel restless or jumpy in the past four weeks?
+    
+    - How often did you feel everything was an effort in the past four weeks?
+    
+    - How often did you feel so sad that nothing could cheer you up in the past four weeks?
+:::
+
+\newpage
+
+# Pearlin Mastery Scale
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Pearlin score
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+wellbeing_pearlin <- f_read_natsihs_sex("Indicator_Vic_Sex_Resilience_Pearlin_Score.csv")
+
+# Data wrangling
+wellbeing_pearlin <- wellbeing_pearlin %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(high_level_of_mastery_20_28_n:low_level_of_mastery_7_19_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(low_n  = low_level_of_mastery_7_19_n,
+                high_n = high_level_of_mastery_20_28_n) %>% 
+  #
+  dplyr::mutate(across(high_n:low_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("high"),
+                starts_with("low"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 66% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne felt that they had a high level of control over their life events and outcomes (Pearlin Mastery Score). This equates to approximately 15,400 Aboriginal and/or Torres Strait Islander people.
+
+- Males were more likely to report a high level of control over their life events and outcomes than females (77% vs. 52%).
+:::
+
+```{r}
+# Table 7B-3
+f_caption_table("Perceived level of control over life events and outcomes for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("high"     = "High level of control",
+              "low"      = "Low level of control",
+              "answered" = "Total")
+
+wellbeing_pearlin %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Pearlin Mastery Score",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- 'Perceived level of control over life events and outcomes' was assessed using the Pearlin Mastery Scale.
+
+    - Seven statements asked about the respondent's belief in their ability to control their own life.
+    
+    - Each statement was measured on a scale from 1 (Strongly agree) to 7 (Strongly disagree).
+
+    - Responses to the seven statements were combined and scaled to produce an overall score between 7 and 28.
+    
+    - The overall Pearlin Mastery Score was categorised as Low (7 to 19) or High (20 to 28).
+    
+- The Pearlin Mastery statements were:
+
+    - I have little control over the things that happen to me.
+    
+    - There is really no way I can solve some of the problems I have.
+    
+    - There is little I can do to change many of the important things in my life.
+    
+    - I often feel helpless in dealing with the problems of life.
+    
+    - Sometimes I feel that I'm being pushed around in life.
+    
+    - What happens to me in the future mostly depends on me.
+    
+    - I can do just about anything I really set my mind to do.
+:::
+
+\newpage
+
+# Multidimensional Scale of Perceived Social Support
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# MSPSS score
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+wellbeing_mspss <- f_read_natsihs_sex("Indicator_Vic_Sex_Resilience_MSPSS_Score.csv")
+
+# Data wrangling
+wellbeing_mspss <- wellbeing_mspss %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(low_support_1_2_9_n:high_support_5_1_7_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(low_n      = low_support_1_2_9_n,
+                moderate_n = moderate_support_3_5_n,
+                high_n     = high_support_5_1_7_n) %>% 
+  #
+  dplyr::mutate(across(low_n:high_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("high"),
+                starts_with("moderate"),
+                starts_with("low"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 64% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne felt that they had a high level of social support from their friends and family (Multidimensional Scale of Perceived Social Support Score). This equates to approximately 15,700 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to report a high level of social support than males (75% vs. 56%).
+:::
+
+```{r}
+# Figure 7B-2
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander and perceived level of social support from friends and family, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- wellbeing_mspss %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("high_n", "moderate_n", "low_n"),
+                     x_labels   = c("High", "Moderate", "Low"),
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 1000,
+                     y_title    = "Estimated number of people")
+
+figure_percent <- wellbeing_mspss %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("high_prop", "moderate_prop", "low_prop"),
+                     x_labels   = c("High", "Moderate", "Low"),
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents")
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- 'Perceived level of social support from friends and family' was assessed using the Multidimensional Scale of Perceived Social Support (MSPSS).
+
+    - Six statements asked about the respondent's social support from their friends and family.
+    
+    - Each statement was measured on a scale from 1 (Very strongly disagree) to 7 (Very strongly agree).
+
+    - Responses to the six statements were combined and scaled to produce an overall score between 1.0 and 7.0.
+    
+    - The overall MSPSS Score was categorised as Low (1.0 to 2.9), Moderate (3.0 to 5.0), or High (5.1 to 7.0).
+    
+- The MSPSS statements were:
+
+    - My family really tries to help me.
+    
+    - I get the emotional support and help I need from my family.
+    
+    - I can talk about my problems with my family.
+    
+    - My family is willing to help me make decisions.
+    
+    - I can count on my friends when things go wrong.
+    
+    - I can talk about my problems with my friends.
+:::
+
+\newpage
+
+```{r}
+# Table 7B-4
+f_caption_table("Perceived level of social support from friends and family for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("high"     = "High social support",
+              "moderate" = "Moderate social support",
+              "low"      = "Low social support",
+              "answered" = "Total")
+
+wellbeing_mspss %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "MSPSS Score",
+                     total_row      = 4)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- 'Perceived level of social support from friends and family' was assessed using the Multidimensional Scale of Perceived Social Support (MSPSS).
+
+    - Six statements asked about the respondent's social support from their friends and family.
+    
+    - Each statement was measured on a scale from 1 (Very strongly disagree) to 7 (Very strongly agree).
+
+    - Responses to the six statements were combined and scaled to produce an overall score between 1.0 and 7.0.
+    
+    - The overall MSPSS Score was categorised as Low (1.0 to 2.9), Moderate (3.0 to 5.0), or High (5.1 to 7.0).
+    
+- The MSPSS statements were:
+
+    - My family really tries to help me.
+    
+    - I get the emotional support and help I need from my family.
+    
+    - I can talk about my problems with my family.
+    
+    - My family is willing to help me make decisions.
+    
+    - I can count on my friends when things go wrong.
+    
+    - I can talk about my problems with my friends.
+:::
+

@@ -1,0 +1,320 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Other Determinants of Health: Family Violence"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "08C Other Family Violence ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 8C-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 8C-"))
+  
+  return(caption)
+  
+}
+```
+
+### What external factors may influence how Aboriginal and/or Torres Strait Islander people and families in the NEPHU catchment are supported to prioritise health and wellbeing, particularly in connection to caring for children and keeping families strong?
+
+# Women Experiencing Domestic Physical or Threatened Harm
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 13: By 2031, the rate of all forms of family violence and abuse against Aboriginal and Torres Strait Islander women and children is reduced at least by 50% (compared to the baseline year of 2018-19).
+:::
+
+<br>
+
+```{r}
+# ------------------------------------------------------------------------------
+# Family violence: women experiencing domestic physical or threatened harm
+# Data from ABS Aboriginal and Torres Strait Islander Health Survey (2018-29)
+# ------------------------------------------------------------------------------
+# Read in ABS data
+violence_women <- readxl::read_excel(file.path(root_folder, subfolder_ctg, "CTG13_Family_Safety_Data_Tables.xlsx"),
+                                     skip  = 1,
+                                     sheet = "Table CtG13A.1") %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::rename(violence = x6) %>%
+  #
+  dplyr::filter(!is.na(vic) & vic != "..")
+
+# Data wrangling
+violence_women <- violence_women %>%
+  dplyr::select(violence,
+                value = vic,
+                unit) %>%
+  #
+  dplyr::mutate(value = as.numeric(value),
+                #
+                violence = dplyr::case_when(
+                  violence == "Experienced domestic physical or face-to-face threatened physical harm (b)"        ~ "Yes",
+                  violence == "Did not experience domestic physical or face-to-face threatened physical harm (b)" ~ "No",
+                  #
+                  violence == "Total (c)" ~ "Total",
+                  TRUE ~ NA_character_))
+```
+
+::: {custom-style="Dotpt"}
+- Data are obtained from the 2018-19 ABS National Aboriginal and Torres Strait Islander Health Survey and are only available at a statewide level.
+
+- During 2018-2019, 7.5% of Aboriginal and/or Torres Strait Islander female survey respondents aged 15 years or over living in Victoria reported that they have experienced domestic physical or face-to-face threatened physical harm in the 12 months prior to the survey.
+
+- More recent data are not available, as this indicator was not included in the 2022-2023 National Aboriginal and/or Torres Strait Islander Health Survey.
+:::
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs_2019)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+:::
+
+\newpage
+
+# Reported Family Violence Incidents
+
+```{r}
+# ------------------------------------------------------------------------------
+# Family violence: reported incidents
+# Data from Crime Statistics Agency
+# ------------------------------------------------------------------------------
+# Read in Crime Statistics Agency data
+violence_incidents <- readxl::read_excel(file.path(root_folder, subfolder_crime, "Indigenous_Data_Tables_Family_Incidents_Visualisation_Year_Ending_December_2023.xlsx"),
+                                         sheet = "Table 01") %>%
+  janitor::clean_names()
+
+# Data wrangling
+violence_incidents <- violence_incidents %>%
+  dplyr::filter(afm_age_group == "Total",
+                afm_indigenous_status != "Total People") %>% 
+  #
+  dplyr::select(year,
+                sex = afm_sex,
+                indigenous_status = afm_indigenous_status,
+                n = afm_counter) %>%
+  #
+  dplyr::mutate(n = as.numeric(n),
+                #
+                sex = dplyr::case_when(
+                  sex == "Males"   ~ "Male",
+                  sex == "Females" ~ "Female",
+                  sex == "People"  ~ "Total",
+                  TRUE ~ NA_character_),
+                #
+                indigenous_status = dplyr::case_when(
+                  indigenous_status == "Aboriginal and/or Torres Strait Islander" ~ "Yes",
+                  indigenous_status == "Non-Indigenous" ~ "No",
+                  TRUE ~ NA_character_))
+```
+
+::: {custom-style="Dotpt"}
+- Data are obtained from the Victorian Crime Statistics Agency and are only available at a statewide level.
+
+- The number of family violence incidents reported by affected Aboriginal and/or Torres Strait Islander family members living in Victoria increased from 4,696 in 2019 to 5,687 in 2023.
+
+- Family violence incidents were more commonly reported by females than by males.
+
+- The number of family violence incidents reported increased each year for both males and females.
+:::
+
+```{r}
+# Figure 8C-1
+f_caption_figure("Number of family violence incidents reported by affected Aboriginal and/or Torres Strait Islander family members, Victoria, by sex and year, 2019-2023")
+
+violence_incidents %>% 
+  dplyr::filter(sex != "Total" & indigenous_status == "Yes") %>% 
+  #
+  ggplot() +
+  #
+  geom_line(aes(x = year, y = n, group = sex, col = sex),
+            linewidth = 1.5) +
+  #
+  scale_y_continuous(limits = c(0, NA),
+                     breaks = scales::breaks_width(500),
+                     expand = expansion(add = c(0, 250)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  scale_color_manual(values = c(colour_lightblue, colour_dodgerblue),
+                     labels = c("Female", "Male"),
+                     name   = NULL) +
+  #
+  labs(x = NULL,
+       y = "Number of reported incidents") +
+  #
+  theme_classic() +
+  #
+  theme(plot.margin = margin(5, 5, 5, 5),
+        #
+        legend.title       = element_text(size = 9),
+        legend.position    = "bottom",
+        legend.location    = "plot",
+        legend.box.spacing = unit(10, "pt"),
+        legend.margin      = margin(c(0, 10, 0, 0)),
+        #
+        axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_crime)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Family violence incidents' are defined as those where a Victoria Police Risk Assessment and Risk Management Report (also known as an L17 form) was completed and recorded on LEAP.
+
+- An ‘affected family member’ is the individual who is deemed to be affected by events occurring during a family incident.
+
+    - The other individual involved in a family incident is referred to as the ‘other party’.
+    
+    - The other party could be a current partner, former partner, or a family member.
+:::
+
+\newpage
+
+```{r}
+# Table 8C-1
+f_caption_table("Number of family violence incidents reported by affected Aboriginal and/or Torres Strait Islander family members, Victoria, by sex and year, 2019-2023")
+
+violence_incidents %>% 
+  dplyr::filter(indigenous_status == "Yes") %>% 
+  #
+  dplyr::select(-indigenous_status) %>% 
+  #
+  tidyr::pivot_wider(names_from  = sex,
+                     values_from = n) %>% 
+  #
+  dplyr::arrange(year) %>% 
+  #
+  dplyr::mutate(year = as.character(year)) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Year", "Female", "Male", "Total")) %>% 
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "all") %>%
+  #
+  flextable::align(j = c(2:4),
+                   align = "right",
+                   part  = "all") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>%
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::width(j = 1:4,
+                   width = 1) %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_crime)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Family violence incidents' are defined as those where a Victoria Police Risk Assessment and Risk Management Report (also known as an L17 form) was completed and recorded on LEAP.
+
+- An ‘affected family member’ is the individual who is deemed to be affected by events occurring during a family incident.
+
+    - The other individual involved in a family incident is referred to as the ‘other party’.
+    
+    - The other party could be a current partner, former partner, or a family member.
+:::
+

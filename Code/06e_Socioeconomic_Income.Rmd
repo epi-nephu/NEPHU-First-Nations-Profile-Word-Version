@@ -1,0 +1,1078 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Socioeconomic Determinants of Health: Income"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "06E Socioeconomic Income ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_grouped.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_grouped_lga.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_grouped_agesex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+officer::block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 6E-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 6E-"))
+  
+  return(caption)
+  
+}
+```
+
+### What is the average income for Aboriginal and/or Torres Strait people living in the NEPHU catchment?
+
+# Income
+
+## Weekly Household Income
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Household weekly income
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+income_household <- f_read_census_lga("Aboriginal_Income_Household.csv",
+                                      variable = "income") %>% 
+  #
+  dplyr::filter(!income %in% c("Partial income stated", "All incomes not stated", "Not applicable")) %>%
+  #
+  dplyr::mutate(income = dplyr::case_when(
+    income == "$3,500 or more ($182,000 or more)" ~ "More than 3000",
+    income == "$3,000-$3,499 ($156,000-$181,999)" ~ "More than 3000",
+    income == "$2,500-$2,999 ($130,000-$155,999)" ~ "1500 to 2999",
+    income == "$2,000-$2,499 ($104,000-$129,999)" ~ "1500 to 2999",
+    income == "$1,750-$1,999 ($91,000-$103,999)"  ~ "1500 to 2999",
+    income == "$1,500-$1,749 ($78,000-$90,999)"   ~ "1500 to 2999",
+    income == "$1,250-$1,499 ($65,000-$77,999)"   ~ "500 to 1499",
+    income == "$1,000-$1,249 ($52,000-$64,999)"   ~ "500 to 1499",
+    income == "$800-$999 ($41,600-$51,999)"       ~ "500 to 1499",
+    income == "$650-$799 ($33,800-$41,599)"       ~ "500 to 1499",
+    income == "$500-$649 ($26,000-$33,799)"       ~ "500 to 1499",
+    income == "$400-$499 ($20,800-$25,999)"       ~ "Less than 499",
+    income == "$300-$399 ($15,600-$20,799)"       ~ "Less than 499",
+    income == "$150-$299 ($7,800-$15,599)"        ~ "Less than 499",
+    income == "$1-$149 ($1-$7,799)"               ~ "Less than 499",
+    income == "Nil income"                        ~ "Less than 499",
+    TRUE ~ NA_character_))
+
+# Data wrangling
+income_household_non_aboriginal <- income_household %>% 
+  f_wrangle_census_lga(variable = income,
+                       level    = "household",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(more_3000_prop = non_aboriginal_n_more_than_3000 / non_aboriginal_total * 100,
+                more_1500_prop = non_aboriginal_n_1500_to_2999 / non_aboriginal_total * 100,
+                more_500_prop  = non_aboriginal_n_500_to_1499 / non_aboriginal_total * 100,
+                less_500_prop  = non_aboriginal_n_less_than_499 / non_aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                more_3000_n = non_aboriginal_n_more_than_3000,
+                more_3000_prop,
+                more_1500_n = non_aboriginal_n_1500_to_2999,
+                more_1500_prop,
+                more_500_n = non_aboriginal_n_500_to_1499,
+                more_500_prop,
+                less_500_n = non_aboriginal_n_less_than_499,
+                less_500_prop,
+                non_aboriginal_total)
+
+income_household_lga <- income_household %>% 
+  f_wrangle_census_lga(variable = income,
+                       level    = "household",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(more_3000_prop = aboriginal_n_more_than_3000 / aboriginal_total * 100,
+                more_1500_prop = aboriginal_n_1500_to_2999 / aboriginal_total * 100,
+                more_500_prop  = aboriginal_n_500_to_1499 / aboriginal_total * 100,
+                less_500_prop  = aboriginal_n_less_than_499 / aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                more_3000_n = aboriginal_n_more_than_3000,
+                more_3000_prop,
+                more_1500_n = aboriginal_n_1500_to_2999,
+                more_1500_prop,
+                more_500_n = aboriginal_n_500_to_1499,
+                more_500_prop,
+                less_500_n = aboriginal_n_less_than_499,
+                less_500_prop,
+                aboriginal_total)
+```
+
+
+```{r, include = FALSE}
+#
+results  <- list()
+data     <- income_household_lga
+data_non <- income_household_non_aboriginal
+
+results$nephu_n <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>%
+  dplyr::mutate(more_1500_n_total = more_1500_n + more_3000_n) %>%
+  pull(more_1500_n_total)
+
+results$nephu_prop <- data %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  dplyr::mutate(more_1500_prop_total = (more_1500_n + more_3000_n) / aboriginal_total * 100) %>% 
+  pull(more_1500_prop_total)
+
+results$non_prop <- data_non %>% 
+  dplyr::filter(lga_name == "NEPHU") %>% 
+  dplyr::mutate(more_1500_prop_total = (more_1500_n + more_3000_n) / non_aboriginal_total * 100) %>% 
+  pull(more_1500_prop_total)
+
+results$comp_non <- dplyr::case_when(
+  results$nephu_prop < results$non_prop * 0.9 ~ "lower than for",
+  results$nephu_prop > results$non_prop * 1.1 ~ "higher than for",
+  TRUE ~ "similar to")
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(less_500_n)) %>% 
+  dplyr::select(lga_name,
+                less_500_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(less_500_prop)) %>% 
+  dplyr::select(lga_name,
+                less_500_prop)
+```
+
+::: {custom-style="Dotpt"}
+- Overall, `r round(results$nephu_prop, digits = 0)`% (n = `r formatC(results$nephu_n, big.mark = ",")`) of households in the NEPHU catchment with at least one member who identified as Aboriginal and/or Torres Strait Islander in the Census had a weekly household income of more than \$1,500. This is `r results$comp_non` non-Indigenous households (`r round(results$non_prop, digits = 0)`%).
+
+- The number of households in different LGAs within the NEPHU catchment with at least one member who identified as Aboriginal and/or Torres Strait Islander with a weekly income of less than $500 ranged from 209 (Darebin LGA) to 18 (Nillumbik LGAs).
+
+- The percentage of households in different LGAs within the NEPHU catchment with at least one member who identified as Aboriginal and/or Torres Strait Islander with a weekly income of less than $500 ranged from 26% (Darebin LGA) to 10% (Boroondara and Nillumbik LGAs).
+:::
+
+```{r}
+# Figure 6E-1
+f_caption_figure("Weekly income for households with at least one person who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+income_household_lga %>%
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_grouped(x_variable = lga_name,
+                  #
+                  factor_levels  = c("more_3000_n", "more_1500_n", "more_500_n", "less_500_n"),
+                  factor_colours = c(colour_yellow, colour_orange, colour_green, colour_lightblue),
+                  factor_labels  = c(">$3,000", "$1,500-$2,999", "$500-$1,499", "<$500"),
+                  #
+                  y_breaks = 100,
+                  y_expand = 60,
+                  y_title  = "Number of households")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- Income can come from a range of sources, including employment, investments, businesses, government benefits, and government allowances.
+:::
+
+\newpage
+
+```{r}
+# Table 6E-1
+f_caption_table("Weekly income for households with at least one person who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+income_household_lga %>%
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  dplyr::mutate(more_3000_prop = round(more_3000_prop, digits = 1),
+                more_1500_prop = round(more_1500_prop, digits = 1),
+                more_500_prop  = round(more_500_prop, digits = 1),
+                less_500_prop  = round(less_500_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_lga(table_headers = c("n", "%", "n", "%", "n", "%", "n", "%"),
+                      group_headers = c("More than\n$3,000", "$1,500-\n$2,999", "$500-\n$1,499", " Less than\n$500"),
+                      group_widths  = c(2, 2, 2, 2),
+                      last_column   = 10) %>% 
+  #
+  flextable::width(j = 2:10,
+                   width = 0.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) and are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+ 
+- Aboriginal and/or Torres Strait Islander households are defined as those with at least one member who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Households include both family and non-family households.
+
+- Income can come from a range of sources, including employment, investments, businesses, government benefits, and government allowances.
+:::
+
+\newpage
+
+## Income Support Payments
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Type of income support, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+income_benefit_lga <- f_read_census_lga("Aboriginal_Income_Benefit_LGA.csv",
+                                        variable = "benefit") %>% 
+  #
+  dplyr::filter(!benefit %in% c("Not applicable",
+                                "Type of benefit unknown", 
+                                "Did not receive government pension or allowance", 
+                                "Admin not available",
+                                "Nil or negative income")) %>% 
+  #
+  dplyr::mutate(benefit = dplyr::case_when(
+    benefit == "Carer Allowance" ~ "Carer support",
+    benefit == "Carer Payment"   ~ "Carer support",
+    #
+    benefit == "Disability Support Pension" ~ "Disability support",
+    benefit == "Mobility Allowance"         ~ "Disability support",
+    #
+    benefit == "Dad and Partner Pay"         ~ "Family and parenting",
+    benefit == "Family Tax Benefits"         ~ "Family and parenting",
+    benefit == "Paid Parental Leave Payment" ~ "Family and parenting",
+    benefit == "Parenting Payment"           ~ "Family and parenting",
+    #
+    benefit == "Age Pension"     ~ "Older Australians",
+    benefit == "Widow Allowance" ~ "Older Australians",
+    #
+    benefit == "Austudy/Abstudy"                  ~ "Work and study",
+    benefit == "Newstart Allowance and Jobseeker" ~ "Work and study",
+    benefit == "Youth Allowance"                  ~ "Work and study",
+    #
+    benefit == "Future Flexible Support Payment"          ~ "Other payments",
+    benefit == "Special Benefit"                          ~ "Other payments",
+    benefit == "Other government pensions and allowances" ~ "Other payments",
+    TRUE ~ NA_character_))  
+
+# Data wrangling
+income_benefit_non_aboriginal <- income_benefit_lga %>% 
+  f_wrangle_census_lga(variable = benefit,
+                       level    = "person",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(carer_prop      = non_aboriginal_n_carer_support / non_aboriginal_total * 100,
+                disability_prop = non_aboriginal_n_disability_support / non_aboriginal_total * 100,
+                family_prop     = non_aboriginal_n_family_and_parenting / non_aboriginal_total * 100,
+                older_prop      = non_aboriginal_n_older_australians / non_aboriginal_total * 100,
+                study_prop      = non_aboriginal_n_work_and_study / non_aboriginal_total * 100,
+                other_prop      = non_aboriginal_n_other_payments / non_aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                carer_n = non_aboriginal_n_carer_support,
+                carer_prop,
+                disability_n = non_aboriginal_n_disability_support,
+                disability_prop,
+                family_n = non_aboriginal_n_family_and_parenting,
+                family_prop,
+                older_n = non_aboriginal_n_older_australians,
+                older_prop,
+                study_n = non_aboriginal_n_work_and_study,
+                study_prop,
+                other_n = non_aboriginal_n_other_payments,
+                other_prop,
+                non_aboriginal_total)
+
+income_benefit_lga <- income_benefit_lga %>% 
+  f_wrangle_census_lga(variable = benefit,
+                       level    = "person",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(carer_prop      = aboriginal_n_carer_support / aboriginal_total * 100,
+                disability_prop = aboriginal_n_disability_support / aboriginal_total * 100,
+                family_prop     = aboriginal_n_family_and_parenting / aboriginal_total * 100,
+                older_prop      = aboriginal_n_older_australians / aboriginal_total * 100,
+                study_prop      = aboriginal_n_work_and_study / aboriginal_total * 100,
+                other_prop      = aboriginal_n_other_payments / aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                carer_n = aboriginal_n_carer_support,
+                carer_prop,
+                disability_n = aboriginal_n_disability_support,
+                disability_prop,
+                family_n = aboriginal_n_family_and_parenting,
+                family_prop,
+                older_n = aboriginal_n_older_australians,
+                older_prop,
+                study_n = aboriginal_n_work_and_study,
+                study_prop,
+                other_n = aboriginal_n_other_payments,
+                other_prop,
+                aboriginal_total)
+
+# ------------------------------------------------------------------------------
+# Type of income support, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+income_benefit_agesex <- f_read_census_agesex("Aboriginal_Income_Benefit_AgeSex.csv",
+                                              variable = "benefit") %>% 
+  #
+  dplyr::filter(!benefit %in% c("Not applicable",
+                                "Type of benefit unknown", 
+                                "Did not receive government pension or allowance", 
+                                "Admin not available",
+                                "Nil or negative income")) %>% 
+  #
+  dplyr::mutate(benefit = dplyr::case_when(
+    benefit == "Carer Allowance" ~ "Carer support",
+    benefit == "Carer Payment"   ~ "Carer support",
+    #
+    benefit == "Disability Support Pension" ~ "Disability support",
+    benefit == "Mobility Allowance"         ~ "Disability support",
+    #
+    benefit == "Dad and Partner Pay"         ~ "Family and parenting",
+    benefit == "Family Tax Benefits"         ~ "Family and parenting",
+    benefit == "Paid Parental Leave Payment" ~ "Family and parenting",
+    benefit == "Parenting Payment"           ~ "Family and parenting",
+    #
+    benefit == "Age Pension"     ~ "Older Australians",
+    benefit == "Widow Allowance" ~ "Older Australians",
+    #
+    benefit == "Austudy/Abstudy"                  ~ "Work and study",
+    benefit == "Newstart Allowance and Jobseeker" ~ "Work and study",
+    benefit == "Youth Allowance"                  ~ "Work and study",
+    #
+    benefit == "Future Flexible Support Payment"          ~ "Other payments",
+    benefit == "Special Benefit"                          ~ "Other payments",
+    benefit == "Other government pensions and allowances" ~ "Other payments",
+    TRUE ~ NA_character_))
+
+# Data wrangling
+income_benefit_agesex <- income_benefit_agesex %>% 
+  f_wrangle_census_agesex(variable = benefit,
+                          dichot   = "no") %>% 
+  #
+  dplyr::mutate(aboriginal_total = aboriginal_n_carer_support + aboriginal_n_disability_support + 
+                                   aboriginal_n_family_and_parenting + aboriginal_n_older_australians + 
+                                   aboriginal_n_work_and_study + aboriginal_n_other_payments,
+                #
+                carer_prop      = aboriginal_n_carer_support / aboriginal_total * 100,
+                disability_prop = aboriginal_n_disability_support / aboriginal_total * 100,
+                family_prop     = aboriginal_n_family_and_parenting / aboriginal_total * 100,
+                older_prop      = aboriginal_n_older_australians / aboriginal_total * 100,
+                study_prop      = aboriginal_n_work_and_study / aboriginal_total * 100,
+                other_prop      = aboriginal_n_other_payments / aboriginal_total * 100) %>% 
+  #
+  dplyr::mutate(across(where(is.numeric), ~replace(., is.na(.), 0)),
+                across(where(is.numeric), ~replace(., is.nan(.), 0))) %>% 
+  #
+  dplyr::select(age_group,
+                sex,
+                carer_n = aboriginal_n_carer_support,
+                carer_prop,
+                disability_n = aboriginal_n_disability_support,
+                disability_prop,
+                family_n = aboriginal_n_family_and_parenting,
+                family_prop,
+                older_n = aboriginal_n_older_australians,
+                older_prop,
+                study_n = aboriginal_n_work_and_study,
+                study_prop,
+                other_n = aboriginal_n_other_payments,
+                other_prop,
+                aboriginal_total)
+```
+
+
+```{r, include = FALSE}
+#
+results <- list()
+data    <- income_benefit_lga
+
+results$rank_study_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(study_n)) %>% 
+  dplyr::select(lga_name,
+                study_n)
+
+results$rank_study_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(study_prop)) %>% 
+  dplyr::select(lga_name,
+                study_prop)
+
+results$rank_family_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(family_n)) %>% 
+  dplyr::select(lga_name,
+                family_n)
+
+results$rank_family_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(family_prop)) %>% 
+  dplyr::select(lga_name,
+                family_prop)
+
+results$rank_disability_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(disability_n)) %>% 
+  dplyr::select(lga_name,
+                disability_n)
+
+results$rank_disability_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(disability_prop)) %>% 
+  dplyr::select(lga_name,
+                disability_prop)
+```
+
+::: {custom-style="Dotpt"}
+- The most common main types of income support payment received by people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census were work and study (48%, n = 1,814), family and parenting (20%, n = 741), and disability support (16%, n = 611).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census and who were receiving a work and study support payment ranged from 308 (Darebin and Whittlesea LGAs) to 30 (Manningham LGA).
+
+- Of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census and who were receiving income support, the percentage who were receiving a work and study support payment ranged from 67% (Boroondara LGA) to 42% (Banyule and Nillumbik LGAs).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census and who were receiving a family and parenting support payment ranged from 183 (Whittlesea LGA) to 10 (Boroondara LGA).
+
+- Of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census and who were receiving income support, the percentage who were receiving a family and parenting support payment ranged from 27% (Whittlesea LGA) to 6.5% (Yarra LGA).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census and who were receiving a disability support payment ranged from 99 (Darebin and Hume LGAs) to 10 (Nillumbik and Manningham LGAs).
+
+- Of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census and who were receiving income support, the percentage who were receiving a disability support payment ranged from 19% (Banyule LGA) to 12% (Boroondara LGA).
+:::
+
+\newpage
+
+```{r}
+# Figure 6E-2
+f_caption_figure("Main type of income support payment for people receiving income support and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 01 July 2020 to 30 June 2021")
+
+income_benefit_lga %>%
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_grouped(x_variable = lga_name,
+                  #
+                  factor_levels  = c("other_n", "carer_n", "older_n",
+                                     "disability_n", "family_n", "study_n"),
+                  factor_colours = c(colour_burgundy, colour_dodgerblue, colour_yellow, 
+                                     colour_orange, colour_green, colour_lightblue),
+                  factor_labels  = c("Other payments", "Carer support", "Older Australians",
+                                     "Disability support", "Family and parenting", "Work and study"),
+                  #
+                  y_breaks = 100,
+                  y_expand = 25)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) linked to data from the Australian Taxation Office and Department of Social Services held in the [Person Level Integrated Data Asset (PLIDA)](https://www.abs.gov.au/about/data-services/data-integration/integrated-data/person-level-integrated-data-asset-plida). Data are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- PLIDA is a secure linked data asset maintained by the ABS that brings together information on health, education, government payments, income and taxation, employment, and population demographics.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- This indicator measures the main type of income support payment received. People may have received more than one type of income support payment.
+
+- The types of income support payments are classified as:
+
+    - Carer support: Carer Allowance, Carer Payment
+    
+    - Disability support: Disability Support Pension, Mobility Allowance
+    
+    - Family and parenting: Dad and Partner Pay, Family Tax Benefits, Paid Parental Leave Payment, Parenting Payment
+    
+    - Older Australians: Age Pension, Widow Allowance
+    
+    - Work and study: Austudy/Abstudy, Newstart Allowance and Jobseeker, Youth Allowance
+    
+    - Other payments: Future Flexible Support Payment, Special Benefit, other government pensions and allowances
+    
+- A number of regions across the state were in various stages of lockdown during the 2020/2021 financial year. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on the receipt of income support payments.
+:::
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r}
+# Table 6E-2
+f_caption_table("Main type of income support payment for people receiving income support and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 01 July 2020 to 30 June 2021")
+
+income_benefit_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  dplyr::mutate(carer_prop      = round(carer_prop, digits = 1),
+                disability_prop = round(disability_prop, digits = 1),
+                family_prop     = round(family_prop, digits = 1),
+                older_prop      = round(older_prop, digits = 1),
+                study_prop      = round(study_prop, digits = 1),
+                other_prop      = round(other_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_lga(table_headers = c("n", "%", "n", "%", "n", "%", "n", "%", "n", "%", "n", "%"),
+                      group_headers = c("Carer support", "Disability support", "Family/parenting", 
+                                        "Older Australians", "Study and work", "Other payments"),
+                      group_widths  = c(2, 2, 2, 2, 2, 2),
+                      last_column   = 14)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) linked to data from the Australian Taxation Office and Department of Social Services held in the [Person Level Integrated Data Asset (PLIDA)](https://www.abs.gov.au/about/data-services/data-integration/integrated-data/person-level-integrated-data-asset-plida). Data are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- PLIDA is a secure linked data asset maintained by the ABS that brings together information on health, education, government payments, income and taxation, employment, and population demographics.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- This indicator measures the main type of income support payment received. People may have received more than one type of income support payment.
+
+- The types of income support payments are classified as:
+
+    - Carer support: Carer Allowance, Carer Payment
+    
+    - Disability support: Disability Support Pension, Mobility Allowance
+    
+    - Family and parenting: Dad and Partner Pay, Family Tax Benefits, Paid Parental Leave Payment, Parenting Payment
+    
+    - Older Australians: Age Pension, Widow Allowance
+    
+    - Work and study: Austudy/Abstudy, Newstart Allowance and Jobseeker, Youth Allowance
+    
+    - Other payments: Future Flexible Support Payment, Special Benefit, other government pensions and allowances
+    
+- A number of regions across the state were in various stages of lockdown during the 2020/2021 financial year. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on the receipt of income support payments.
+:::
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+```{r}
+# Figure 6E-3
+f_caption_figure("Main type of income support payment for people receiving income support and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 01 July 2020 to 30 June 2021")
+
+income_benefit_agesex %>%
+  dplyr::filter(age_group %in% age_group_lvl) %>% 
+  #
+  f_graph_grouped(x_variable = age_group,
+                  #
+                  factor_levels  = c("other_n", "carer_n", "older_n",
+                                     "disability_n", "family_n", "study_n"),
+                  factor_colours = c(colour_burgundy, colour_dodgerblue, colour_yellow, 
+                                     colour_orange, colour_green, colour_lightblue),
+                  factor_labels  = c("Other payments", "Carer support", "Older Australians",
+                                     "Disability support", "Family and parenting", "Work and study"),
+                  #
+                  y_breaks = 100,
+                  y_expand = 75) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) linked to data from the Australian Taxation Office and Department of Social Services held in the [Person Level Integrated Data Asset (PLIDA)](https://www.abs.gov.au/about/data-services/data-integration/integrated-data/person-level-integrated-data-asset-plida). Data are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- PLIDA is a secure linked data asset maintained by the ABS that brings together information on health, education, government payments, income and taxation, employment, and population demographics.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- This indicator measures the main type of income support payment received. People may have received more than one type of income support payment.
+
+- The types of income support payments are classified as:
+
+    - Carer support: Carer Allowance, Carer Payment
+    
+    - Disability support: Disability Support Pension, Mobility Allowance
+    
+    - Family and parenting: Dad and Partner Pay, Family Tax Benefits, Paid Parental Leave Payment, Parenting Payment
+    
+    - Older Australians: Age Pension, Widow Allowance
+    
+    - Work and study: Austudy/Abstudy, Newstart Allowance and Jobseeker, Youth Allowance
+    
+    - Other payments: Future Flexible Support Payment, Special Benefit, other government pensions and allowances
+    
+- A number of regions across the state were in various stages of lockdown during the 2020/2021 financial year. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on the receipt of income support payments.
+:::
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r}
+# Table 6E-3
+f_caption_table("Main type of income support payment for females receiving income support and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age, 01 July 2020 to 30 June 2021")
+
+income_benefit_agesex %>% 
+  dplyr::mutate(carer_prop      = round(carer_prop, digits = 1),
+                disability_prop = round(disability_prop, digits = 1),
+                family_prop     = round(family_prop, digits = 1),
+                older_prop      = round(older_prop, digits = 1),
+                study_prop      = round(study_prop, digits = 1),
+                other_prop      = round(other_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_agesex(sex_name = "Female",
+                         #
+                         table_headers = c("n", "%", "n", "%", "n", "%", "n", "%", "n", "%", "n", "%"),
+                         group_headers = c("Carer support", "Disability support", "Family/parenting", 
+                                           "Older Australians", "Study and work", "Other payments"),
+                         group_widths  = c(2, 2, 2, 2, 2, 2),
+                         last_column   = 14)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) linked to data from the Australian Taxation Office and Department of Social Services held in the [Person Level Integrated Data Asset (PLIDA)](https://www.abs.gov.au/about/data-services/data-integration/integrated-data/person-level-integrated-data-asset-plida). Data are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- PLIDA is a secure linked data asset maintained by the ABS that brings together information on health, education, government payments, income and taxation, employment, and population demographics.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- This indicator measures the main type of income support payment received. People may have received more than one type of income support payment.
+
+- The types of income support payments are classified as:
+
+    - Carer support: Carer Allowance, Carer Payment
+    
+    - Disability support: Disability Support Pension, Mobility Allowance
+    
+    - Family and parenting: Dad and Partner Pay, Family Tax Benefits, Paid Parental Leave Payment, Parenting Payment
+    
+    - Older Australians: Age Pension, Widow Allowance
+    
+    - Work and study: Austudy/Abstudy, Newstart Allowance and Jobseeker, Youth Allowance
+    
+    - Other payments: Future Flexible Support Payment, Special Benefit, other government pensions and allowances
+    
+- A number of regions across the state were in various stages of lockdown during the 2020/2021 financial year. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on the receipt of income support payments.
+:::
+
+```{r}
+# Table 6E-4
+f_caption_table("Main type of income support payment for males receiving income support and who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age, 01 July 2020 to 30 June 2021")
+income_benefit_agesex %>% 
+  dplyr::mutate(carer_prop      = round(carer_prop, digits = 1),
+                disability_prop = round(disability_prop, digits = 1),
+                family_prop     = round(family_prop, digits = 1),
+                older_prop      = round(older_prop, digits = 1),
+                study_prop      = round(study_prop, digits = 1),
+                other_prop      = round(other_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_agesex(sex_name = "Male",
+                         #
+                         table_headers = c("n", "%", "n", "%", "n", "%", "n", "%", "n", "%", "n", "%"),
+                         group_headers = c("Carer support", "Disability support", "Family/parenting", 
+                                           "Older Australians", "Study and work", "Other payments"),
+                         group_widths  = c(2, 2, 2, 2, 2, 2),
+                         last_column   = 14)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [ABS Census 2021](https://www.abs.gov.au/census) linked to data from the Australian Taxation Office and Department of Social Services held in the [Person Level Integrated Data Asset (PLIDA)](https://www.abs.gov.au/about/data-services/data-integration/integrated-data/person-level-integrated-data-asset-plida). Data are publicly available at Local Government Area (LGA), ABS Statistical Area Level 2 (SA2), and Indigenous Area of Residence (IARE) level.
+
+- PLIDA is a secure linked data asset maintained by the ABS that brings together information on health, education, government payments, income and taxation, employment, and population demographics.
+ 
+- Aboriginal and/or Torres Strait Islander peoples are defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the ABS Census 2021.
+ 
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- People with an unknown or not stated age or sex have been excluded from age/sex breakdowns.
+
+- This indicator measures the main type of income support payment received. People may have received more than one type of income support payment.
+
+- The types of income support payments are classified as:
+
+    - Carer support: Carer Allowance, Carer Payment
+    
+    - Disability support: Disability Support Pension, Mobility Allowance
+    
+    - Family and parenting: Dad and Partner Pay, Family Tax Benefits, Paid Parental Leave Payment, Parenting Payment
+    
+    - Older Australians: Age Pension, Widow Allowance
+    
+    - Work and study: Austudy/Abstudy, Newstart Allowance and Jobseeker, Youth Allowance
+    
+    - Other payments: Future Flexible Support Payment, Special Benefit, other government pensions and allowances
+    
+- A number of regions across the state were in various stages of lockdown during the 2020/2021 financial year. This resulted in a greater number of people being stood down from work than usual, which may have had an impact on the receipt of income support payments.
+:::
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+# Financial Security
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Basic living expenses
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+financial_expenses <- f_read_natsihs_sex("Indicator_Vic_Sex_Financial_LivingExpenses.csv")
+
+# Data wrangling
+financial_expenses <- financial_expenses %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(had_days_without_money_for_basic_living_expenses_in_last_12_months_n:did_not_have_days_without_money_for_basic_living_expenses_in_last_12_months_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(withoutyes_n = had_days_without_money_for_basic_living_expenses_in_last_12_months_n,
+                withoutno_n  = did_not_have_days_without_money_for_basic_living_expenses_in_last_12_months_n) %>% 
+  #
+  dplyr::mutate(across(withoutyes_n:withoutno_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("withoutyes"),
+                starts_with("withoutno"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Ability to raise money in an emergency
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+financial_emergency <- f_read_natsihs_sex("Indicator_Vic_Sex_Financial_Emergency.csv")
+
+# Data wrangling
+financial_emergency <- financial_emergency %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(could_raise_2000_in_a_week_n:could_not_raise_2000_in_a_week_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(raiseyes_n = could_raise_2000_in_a_week_n,
+                raiseno_n  = could_not_raise_2000_in_a_week_n) %>% 
+  #
+  dplyr::mutate(across(raiseyes_n:raiseno_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("raiseyes"),
+                starts_with("raiseno"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Food security
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+financial_foodsecurity <- f_read_natsihs_sex("Indicator_Vic_Sex_Financial_FoodSecurity.csv")
+
+# Data wrangling
+financial_foodsecurity <- financial_foodsecurity %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(food_secure_n:severely_food_insecure_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(secure_n   = food_secure_n,
+                marginal_n = marginally_food_insecure_n,
+                moderate_n = moderately_food_insecure_n,
+                severe_n   = severely_food_insecure_n) %>% 
+  #
+  dplyr::mutate(across(secure_n:severe_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("secure"),
+                starts_with("marginal"),
+                starts_with("moderate"),
+                starts_with("severe"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 43% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne reported that they had at least one day during the previous 12 months where they did not have money for basic living expenses. This equates to approximately 16,400 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to report having at least one day where they did not have money for basic living expenses than males (49% vs. 38%).
+
+- Overall, 61% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne reported that their household would be able to raise $2,000 in a week during an emergency. This equates to approximately 23,200 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to report that their household would be able to raise emergency funds than males (64% vs. 58%).
+
+- Overall, 59% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne reported that they were food secure at all times during the previous 12 months. This equates to approximately 22,900 Aboriginal and/or Torres Strait Islander people.
+
+- Males were more likely to report being food secure than females (62% vs. 55%).
+:::
+
+```{r}
+# Table 6E-5
+f_caption_table("Whether had days without money for basic living expenses during the previous 12 months for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("withoutyes" = "Yes",
+              "withoutno"  = "No",
+              "answered"   = "Total")
+
+financial_expenses %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Days without money\nfor basic expenses",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 6E-6
+f_caption_table("Whether household members could raise $2,000 in a week in an emergency for people aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("raiseyes"     = "Yes",
+              "raiseno"      = "No",
+              "answered"     = "Total")
+
+financial_emergency %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Could raise $2,000\nfor an emergency",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+```{r}
+# Figure 6E-4
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander and level of food security during the previous 12 months, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- financial_foodsecurity %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("secure_n", "marginal_n", "moderate_n", "severe_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1500,
+                     y_expand   = 850,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Food\nsecure", "Marginal\ninsecurity", "Moderate\ninsecurity", "Severe\ninsecurity"),
+                   guide  = guide_axis(angle = 0))
+
+figure_percent <- financial_foodsecurity %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("secure_prop", "marginal_prop", "moderate_prop", "severe_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Food\nsecure", "Marginal\ninsecurity", "Moderate\ninsecurity", "Severe\ninsecurity"),
+                   guide  = guide_axis(angle = 0))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- Food security is defined as having enough food and/or money to buy food needed for an active, healthy life at all times during the previous 12 months.
+
+    - Marginal food insecurity is generally characterised by worrying about running out of food or experiencing a lack of selection of food due to a lack of money for food.
+    
+    - Moderate food insecurity is generally characterised by compromising on the quality and/or quantity of food due to a lack of money for food.
+    
+    - Severe food insecurity is generally characterised by missing meals or reducing food intake due to a lack of money for food.
+:::
+
+```{r}
+# Table 6E-7
+f_caption_table("Level of food security during the previous 12 months for survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("secure"   = "Food secure", 
+              "marginal" = "Marginal insecurity", 
+              "moderate" = "Moderate insecurity",
+              "severe"   = "Severe insecurity", 
+              "answered" = "Total")
+
+financial_foodsecurity %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Food security",
+                     total_row      = 5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- Food security is defined as having enough food and/or money to buy food needed for an active, healthy life at all times during the previous 12 months.
+
+    - Marginal food insecurity is generally characterised by worrying about running out of food or experiencing a lack of selection of food due to a lack of money for food.
+    
+    - Moderate food insecurity is generally characterised by compromising on the quality and/or quantity of food due to a lack of money for food.
+    
+    - Severe food insecurity is generally characterised by missing meals or reducing food intake due to a lack of money for food.
+:::
+

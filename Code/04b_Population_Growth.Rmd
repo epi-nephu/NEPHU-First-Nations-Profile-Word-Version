@@ -1,0 +1,255 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Population: Population Growth"
+output:
+  officedown::rdocx_document:
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "04B Population Growth ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+# 
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_population.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+officer::block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 4B-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 4B-"))
+  
+  return(caption)
+  
+}
+```
+
+### Where are the areas within the NEPHU catchment with the most rapid population growth for Aboriginal and/or Torres Strait Islander people?
+
+# Population Growth
+
+## Population Projections
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Population projections, with IARE breakdowns
+# Data from ABS Population Estimates and Projections
+# ------------------------------------------------------------------------------
+# Read in ABS data
+aboriginal_projections_iare <- readxl::read_xlsx(file.path(root_folder, 
+                                                           subfolder_projections, 
+                                                           "Aboriginal_IARE_Projections.xlsx"),
+                                                 skip = 1) %>% 
+  janitor::clean_names() %>% 
+  #
+  dplyr::select(iare_name = indigenous_regions,
+                erp_2021_number = x2021_no,
+                high_2031_number = x2031_high_series_no,
+                high_2031_rate = x2031_high_series_growth_rate_b_percent,
+                medium_2031_number = x2031_medium_series_no,
+                medium_2031_rate = x2031_medium_series_growth_rate_b_percent,
+                low_2031_number = x2031_low_series_no,
+                low_2031_rate = x2031_low_series_growth_rate_b_percent) %>%
+  #
+  dplyr::filter(!is.na(erp_2021_number))
+
+# Data wrangling
+aboriginal_projections_iare <- aboriginal_projections_iare %>% 
+  dplyr::filter(iare_name %in% c("Melbourne",
+                                 "Victoria exc. Melbourne",
+                                 "Victoria",
+                                 "Australia(c)")) %>% 
+  #
+  dplyr::mutate(
+    iare_name = dplyr::case_when(
+      iare_name == "Victoria exc. Melbourne" ~ "Rest of Victoria",
+      iare_name == "Australia(c)"            ~ "Australia",
+      #
+      TRUE ~ as.character(iare_name)))
+
+# Projections based on medium assumptions
+projections_medium <- aboriginal_projections_iare %>% 
+  dplyr::select(iare_name,
+                erp_2021_number,
+                medium_2031_number,
+                medium_2031_rate)
+```
+
+::: {custom-style="Dotpt"}
+- The Aboriginal and/or Torres Strait Islander population in the Greater Melbourne area is expected to grow from 2021-2031 at a rate of 1.9% per year, increasing from an estimated population of 38,217 in 2021 to 46,017 in 2031.
+
+- This projected growth rate is slightly lower than the projected growth rate for the rest of Victoria (2.3% per year) and Victoria overall (2.1% per year), but slightly higher than the projected growth rate for Australia overall (1.8% per year).
+:::
+
+```{r}
+# Table 4B-1
+f_caption_table("Population projections for Aboriginal and/or Torres Strait Islander people, Australia, by IARE, 2021 to 2031")
+
+projections_medium %>%
+  f_table_population(total_row     = 4,
+                     table_headers = c("IARE",
+                                       "2021 population",
+                                       "2031 population",
+                                       "% growth\nper year"))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- These data are based on customised projections prepared for the Australian Government Department of Health by the ABS at the IARE level, and originally [published by the ABS](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/estimates-and-projections-aboriginal-and-torres-strait-islander-australians/latest-release).
+
+- The baseline 2021 counts for comparison are based on [ABS Estimated Residential Population](https://www.abs.gov.au/statistics/people/population) calculations, which take into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census.
+
+- Data are only publicly available at an aggregate level for Melbourne or Victoria (excluding Melbourne).
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+::: 
+
+\newpage
+
+### What are the drivers of population growth for Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+# Population Drivers
+
+## Birthrate
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Birthrate, with IARE breakdowns
+# Data from AIHW Mothers and Babies
+# ------------------------------------------------------------------------------
+# Read in ABS data
+aboriginal_birthrate_iare <- readxl::read_xlsx(file.path(root_folder, 
+                                                         subfolder_birth, 
+                                                         "AIHW-PER-120-Aboriginal-Torres-Strait-Islander-mothers-babies-data-tables.xlsx"),
+                                               sheet = "Table 1.1",
+                                               skip  = 8) %>% 
+  janitor::clean_names()
+  
+# Data wrangling
+aboriginal_birthrate_iare <- aboriginal_birthrate_iare %>% 
+  dplyr::filter(year == 2020) %>% 
+  #
+  dplyr::filter(topic == "Indigenous region (IREG)" & category == "Melbourne" |
+                topic == "Indigenous region (IREG)" & category == "Victoria exc. Melbourne" |
+                topic == "Indigenous region (IREG)" & category == "Victoria exc. Melbourne" |
+                topic == "State or territory of birth" & category == "Vic" |
+                topic == "State or territory of birth" & category == "Australia") %>% 
+  #
+  dplyr::mutate(
+    iare_name = factor(dplyr::case_when(
+      category == "Melbourne"               ~ "Melbourne",
+      category == "Victoria exc. Melbourne" ~ "Rest of Victoria",
+      category == "Vic"                     ~ "Victoria",
+      category == "Australia"               ~ "Australia",
+      #
+      TRUE ~ NA_character_),
+      #
+      levels = c("Melbourne",
+                 "Rest of Victoria",
+                 "Victoria",
+                 "Australia")),
+    #
+    indigenous_status = dplyr::case_when(
+      indigenous_status == "Aboriginal and Torres Strait Islander" ~ "Aboriginal and/or Torres Strait Islander",
+      indigenous_status == "Non-Indigenous"                        ~ "Neither Aboriginal nor Torres Strait Islander",
+      #
+      TRUE ~ NA_character_)) %>% 
+  #
+  dplyr::select(iare_name,
+                indigenous_status,
+                number_births = number,
+                rate_births = number_per_1_000) %>% 
+  #
+  dplyr::arrange(iare_name, indigenous_status)
+```
+
+::: {custom-style="Dotpt"}
+- The birthrate for Aboriginal and/or Torres Strait Islander people for 2020 in Greater Melbourne (62 per 1,000 population) was lower than the birthrate for Aboriginal and/or Torres Strait Islander people in the rest of Victoria (87 per 1,000 population), all of Victoria combined (81 per 1,000 population), and Australia overall (75 per 1,000 population).
+
+- Aboriginal and/or Torres Strait Islander people in Victoria during 2020 had higher birthrates (81 per 1,000 population) than non-Aboriginal and/or Torres Strait Islander people in Victoria (55 per 1,000 population) and non-Aboriginal and/or Torres Strait Islander people  in Australia (55 per 1,000 population).
+:::
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are sourced from the [AIHW Mothers and Babies Report](https://www.aihw.gov.au/reports/mothers-babies/australias-mothers-babies/contents/summary) and are only publicly available at an aggregate level for Melbourne or Victoria (excluding Melbourne).
+
+- Birthrate is calculated as the total number of births per 1,000 population as estimated by [ABS Estimated Residential Population](https://www.abs.gov.au/statistics/people/population) calculations. ERP calculations take into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census.
+:::
+

@@ -1,0 +1,1156 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Cultural Determinants of Health: Connection with Culture"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "07A Cultural Connection ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+ 
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 7A-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 7A-"))
+  
+  return(caption)
+  
+}
+```
+
+### Do Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment feel connected to culture and community?
+
+# Connection with Culture and Community
+
+## Knowledge of Culture
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Knowledge of culture
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+connection_knowledge <- f_read_natsihs_sex("Indicator_Vic_Sex_Culture_Knowledge.csv")
+
+# Data wrangling
+connection_knowledge <- connection_knowledge %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(very_satisfied_n:not_at_all_satisfied_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(verysatisfied_n     = very_satisfied_n,
+                notverysatisfied_n  = not_very_satisfied_n,
+                notatallsatisfied_n = not_at_all_satisfied_n) %>% 
+  #
+  dplyr::mutate(across(verysatisfied_n:notatallsatisfied_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("verysatisfied"),
+                starts_with("satisfied"),
+                starts_with("neutral"),
+                starts_with("notverysatisfied"),
+                starts_with("notatallsatisfied"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Knowledge of culture - historical comparison
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+connection_knowledge_2018 <- read.csv(file.path(root_folder, 
+                                                "Population Health Data/ABS National Aboriginal Health Survey 2018-19/Data",
+                                                "Aboriginal_IARE_Culture_Knowledge.csv"),
+                                      skip        = 9,
+                                      strip.white = TRUE) %>%
+    #
+    dplyr::rename(iare_name = colnames(.)[1]) %>%
+    #
+    janitor::clean_names() %>%
+    #
+    dplyr::filter(iare_name == "Melbourne") %>%
+    #
+    dplyr::mutate(iare_name = dplyr::case_when(
+      iare_name == "Melbourne" ~ "Greater Melbourne",
+      TRUE ~ NA_character_)) %>%
+    #
+    dplyr::select(iare_name,
+                  everything(),
+                  -ends_with("_rse"),
+                  -ends_with("_annotations"),
+                  -x) %>%
+    #
+    dplyr::rename_with(.fn = ~ paste0(., "_n"), .cols = 2:ncol(.)) %>% 
+    #
+    dplyr::mutate(across(!c(iare_name), as.numeric)) %>%
+    #
+    dplyr::mutate_if(is.numeric, ~ . * 1000)
+
+# Data wrangling
+connection_knowledge_2018 <- connection_knowledge_2018 %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(very_satisfied_n:not_at_all_satisfied_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(verysatisfied_n     = very_satisfied_n,
+                notverysatisfied_n  = not_very_satisfied_n,
+                notatallsatisfied_n = not_at_all_satisfied_n) %>% 
+  #
+  dplyr::mutate(across(verysatisfied_n:notatallsatisfied_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(iare_name,
+                starts_with("verysatisfied"),
+                starts_with("satisfied"),
+                starts_with("neutral"),
+                starts_with("notverysatisfied"),
+                starts_with("notatallsatisfied"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 29% of Aboriginal and/or Torres Strait Islander survey respondents aged 18 years and over living in Greater Melbourne reported that they were satisfied or very satisfied with their level of knowledge about culture. This equates to approximately 6,700 Aboriginal and/or Torres Strait Islander people.
+
+- This is a decrease compared to the previous Aboriginal and Torres Strait Islander Health Survey conducted in 2018-19, where 34% (approximately 5,800 people) of survey respondents aged 18 years and over living in Greater Melbourne reported that they were satisfied or very satisfied with their level of knowledge about culture.
+
+- 44% of survey respondents (approximately 10,100 people) reported that they were not very satisfied or not at all satisfied with their level of knowledge about culture.
+
+- Males were more likely to report that they were satisfied or very satisfied with their level of knowledge about culture than females (34% vs. 24%).
+:::
+
+```{r}
+# Figure 7A-1
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander and who are satisfied with their level of knowledge of culture, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- connection_knowledge %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("verysatisfied_n", "satisfied_n", "neutral_n", "notverysatisfied_n", "notatallsatisfied_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 500,
+                     y_expand   = 200,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Very\nsatisfied", "Satisfied", "Neutral", "Not very\nsatisfied", "Not at all\nsatisfied"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- connection_knowledge %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("verysatisfied_prop", "satisfied_prop", "neutral_prop", "notverysatisfied_prop", "notatallsatisfied_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 50,
+                     y_breaks   = 5,
+                     y_expand   = 0.5,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Very\nsatisfied", "Satisfied", "Neutral", "Not very\nsatisfied", "Not at all\nsatisfied"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 7A-1
+f_caption_table("Satisfaction with level of knowledge of culture for people aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("verysatisfied"     = "Very satisfied",
+              "satisfied"         = "Satisfied",
+              "neutral"           = "Neutral",
+              "notverysatisfied"  = "Not very satisfied",
+              "notatallsatisfied" = "Not at all satisfied",
+              "answered"          = "Total")
+
+connection_knowledge %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Satisfaction",
+                     total_row      = 6)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+## Pride in Culture
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Pride in culture
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+connection_pride <- f_read_natsihs_sex("Indicator_Vic_Sex_Culture_Pride.csv")
+
+# Data wrangling
+connection_pride <- connection_pride %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(proud_of_culture_being_aboriginal_or_torres_strait_islander_n:not_proud_of_culture_being_aboriginal_or_torres_strait_islander_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(proud_n    = proud_of_culture_being_aboriginal_or_torres_strait_islander_n,
+                notproud_n = not_proud_of_culture_being_aboriginal_or_torres_strait_islander_n) %>% 
+  #
+  dplyr::mutate(across(proud_n:notproud_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("proud"),
+                starts_with("notproud"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 92% of Aboriginal and/or Torres Strait Islander survey respondents aged 18 years and over living in Greater Melbourne reported that they were proud of their culture and/or proud of being Aboriginal and/or Torres Strait Islander. This equates to approximately 21,400 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to report that they were proud of their culture and/or proud of being Aboriginal and/or Torres Strait Islander than males (95% vs. 90%).
+:::
+
+```{r}
+# Table 7A-2
+f_caption_table("Pride in culture and/or of being Aboriginal and/or Torres Strait Islander for people aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("proud"    = "Yes",
+              "notproud" = "No",
+              "answered" = "Total")
+
+connection_pride %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Proud of culture",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+## Identification with Tribal Group, Language Group, or Clan
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Identification with tribal group, language group, or clan
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+connection_identification <- f_read_natsihs_sex("Indicator_Vic_Sex_Culture_Identification.csv")
+
+# Data wrangling
+connection_identification <- connection_identification %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(identifies_with_a_tribal_group_n:does_not_identify_with_tribal_group_language_group_clan_mission_or_regional_group_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(tribal_n   = identifies_with_a_tribal_group_n,
+                language_n = identifies_with_a_language_group_n,
+                clan_n     = identifies_with_a_clan_n,
+                mission_n  = identifies_with_a_mission_n,
+                regional_n = identifies_with_a_regional_group_n,
+                nogroup_n  = does_not_identify_with_tribal_group_language_group_clan_mission_or_regional_group_n) %>% 
+  #
+  dplyr::mutate(across(tribal_n:nogroup_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("tribal"),
+                starts_with("language"),
+                starts_with("clan"),
+                starts_with("mission"),
+                starts_with("regional"),
+                starts_with("nogroup"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 36% of Aboriginal and/or Torres Strait Islander survey respondents aged 18 years and over living in Greater Melbourne reported that they did not identify with any specific tribal group, language group, or clan. This equates to approximately 11,100 Aboriginal and/or Torres Strait Islander people.
+
+- 27% of survey respondents reported that they identified with a specific regional group and 19% reported that they identified with a specific tribal group.
+
+- Females were more likely to report that they did not identify with any specific tribal group, language group, or clan than males (40% vs. 34%).
+:::
+
+```{r}
+# Figure 7A-2
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander and who identify with a tribal group, language group, or clan, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- connection_identification %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("tribal_n", "language_n", "clan_n", "mission_n", "regional_n", "nogroup_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 600,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Tribal group", "Language group", "Clan", "Mission", "Regional group", "No group"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- connection_identification %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("tribal_prop", "language_prop", "clan_prop", "mission_prop", "regional_prop", "nogroup_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 50,
+                     y_breaks   = 5,
+                     y_expand   = 0.5,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Tribal group", "Language group", "Clan", "Mission", "Regional group", "No group"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- Survey respondents were able to select multiple responses.
+:::
+
+\newpage
+
+```{r}
+# Table 7A-3
+f_caption_table("Identification with tribal group, language group, or clan for people aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("tribal"   = "Tribal group",
+              "language" = "Language group",
+              "clan"     = "Clan",
+              "mission"  = "Mission",
+              "regional" = "Regional group",
+              "nogroup"  = "No group",
+              "answered" = "Total")
+
+connection_identification %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Identifies with",
+                     total_row      = 7)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+
+- Survey respondents were able to select multiple responses.
+:::
+
+\newpage
+
+## Acceptance by Community
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Acceptance by members of community
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+connection_acceptance <- f_read_natsihs_sex("Indicator_Vic_Sex_Culture_Acceptance.csv")
+
+# Data wrangling
+connection_acceptance <- connection_acceptance %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(feels_accepted_by_other_aboriginal_or_torres_strait_islander_people_n:does_not_feel_accepted_by_other_aboriginal_or_torres_strait_islander_people_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(accept_n   = feels_accepted_by_other_aboriginal_or_torres_strait_islander_people_n,
+                noaccept_n = does_not_feel_accepted_by_other_aboriginal_or_torres_strait_islander_people_n) %>% 
+  #
+  dplyr::mutate(across(accept_n:noaccept_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("accept"),
+                starts_with("noaccept"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 75% of Aboriginal and/or Torres Strait Islander survey respondents aged 18 years and over living in Greater Melbourne reported that they did feel accepted by other members of the Aboriginal and/or Torres Strait Islander community. This equates to approximately 17,500 Aboriginal and/or Torres Strait Islander people.
+
+- Males were more likely to report that they felt accepted by other members of the Aboriginal and/or Torres Strait Islander community than females (82% vs. 65%).
+:::
+
+```{r}
+# Table 7A-4
+f_caption_table("Feeling accepted by other members of Aboriginal and/or Torres Strait Islander community for people aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("accept"   = "Yes",
+              "noaccept" = "No",
+              "answered" = "Total")
+
+connection_acceptance %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Feels accepted\nby community",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+## Importance of Recognition as Aboriginal and/or Torres Strait Islander
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Importance of being recognised as Aboriginal and/or Torres Strait Islander 
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+connection_recognition <- f_read_natsihs_sex("Indicator_Vic_Sex_Culture_Recognition.csv")
+
+# Data wrangling
+connection_recognition <- connection_recognition %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(very_important_n:not_at_all_important_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(very_n     = very_important_n,
+                notvery_n  = not_very_important_n,
+                notatall_n = not_at_all_important_n) %>% 
+  #
+  dplyr::mutate(across(very_n:notatall_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("very"),
+                starts_with("important"),
+                starts_with("neutral"),
+                starts_with("notvery"),
+                starts_with("notatall"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 66% of Aboriginal and/or Torres Strait Islander survey respondents aged 18 years and over living in Greater Melbourne reported that it was important or very important to them that they were recognised as Aboriginal and/or Torres Strait Islander. This equates to approximately 15,600 Aboriginal and/or Torres Strait Islander people.
+
+- Females were more likely to report that it was not at all important that they were recognised as Aboriginal and/or Torres Strait Islander than males (10%% vs. 4.6%).
+:::
+
+```{r}
+# Figure 7A-3
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander and importance of being recognised as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- connection_recognition %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("very_n", "important_n", "neutral_n", "notvery_n", "notatall_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 500,
+                     y_expand   = 500,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Very\nimportant", "Important", "Neutral", "Not very\nimportant", "Not at all\nimportant"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- connection_recognition %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("very_prop", "important_prop", "neutral_prop", "notvery_prop", "notatall_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 50,
+                     y_breaks   = 5,
+                     y_expand   = 0.5,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Very\nimportant", "Important", "Neutral", "Not very\nimportant", "Not at all\nimportant"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 7A-5
+f_caption_table("Importance of recognition as Aboriginal and/or Torres Strait Islander for people aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("very"      = "Very important",
+              "important" = "Important",
+              "neutral"   = "Neutral",
+              "notvery"   = "Not very important",
+              "notatall"  = "Not at all important",
+              "answered"  = "Total")
+
+connection_recognition %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Importance of\nrecognition",
+                     total_row      = 6)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+# Relationship with Lands and Waters
+
+## Recognition of Homelands
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Recognition of homelands
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+connection_homeland <- f_read_natsihs_sex("Indicator_Vic_Sex_Culture_Homeland.csv")
+
+# Data wrangling
+connection_homeland <- connection_homeland %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(recognises_homelands_n:doesn_t_recognise_homelands_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(homeland_n   = recognises_homelands_n,
+                nohomeland_n = doesn_t_recognise_homelands_n) %>% 
+  #
+  dplyr::mutate(across(homeland_n:nohomeland_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("homeland"),
+                starts_with("nohomeland"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 68% of Aboriginal and/or Torres Strait Islander survey respondents aged 18 years and over living in Greater Melbourne reported that they recognised an area as their homelands. This equates to approximately 14,900 Aboriginal and/or Torres Strait Islander people.
+
+- Males and females were equally likely to recognise an area as their homelands (68% vs. 68%).
+:::
+
+```{r}
+# Table 7A-6
+f_caption_table("Recognition of an area as homelands for people aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("homeland"   = "Yes",
+              "nohomeland" = "No",
+              "answered"   = "Total")
+
+connection_homeland %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Recognises area\nas homelands",
+                     total_row      = 3) %>% 
+  #
+  flextable::colformat_double(j = c(3, 5, 7),
+                              digits = 1)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+## Visits to Homelands
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Frequency of visits to homelands
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+connection_visit <- f_read_natsihs_sex("Indicator_Vic_Sex_Culture_HomelandVisit.csv")
+
+# Data wrangling
+connection_visit <- connection_visit %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(several_times_per_year_n:never_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(several_n   = several_times_per_year_n,
+                annual_n    = once_per_year_n,
+                notannual_n = less_frequently_than_once_per_year_n) %>% 
+  #
+  dplyr::mutate(across(several_n:never_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("several"),
+                starts_with("annual"),
+                starts_with("notannual"),
+                starts_with("never"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Overall, 69% of Aboriginal and/or Torres Strait Islander survey respondents aged 18 years and over living in Greater Melbourne who recognised an area as their homelands do not currently live on their homelands. This equates to approximately 10,300 Aboriginal and/or Torres Strait Islander people.
+
+- 66% (approximately 6,800 people) of people who do not live on their homelands had visited, with 14% (approximately 1,400 people) visiting several times per year and a further 17% (approximately 1,800 people) visiting once per year.
+
+- Females were more likely to visit their homelands several times per year than males (18% vs. 9.3%).
+:::
+
+```{r}
+# Figure 7A-4
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander and frequency of visits to homelands, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- connection_visit %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("several_n", "annual_n", "notannual_n", "never_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 250,
+                     y_expand   = 150,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Several times\nper year", "Once per year", "Less than\nonce per year", "Never"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- connection_visit %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("several_prop", "annual_prop", "notannual_prop", "never_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 50,
+                     y_breaks   = 5,
+                     y_expand   = 0.5,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Several times\nper year", "Once per year", "Less than\nonce per year", "Never"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+```{r}
+# Table 7A-7
+f_caption_table("Frequency of visits to homelands for people aged 18 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("several"   = "Several times per year",
+              "annual"    = "Once per year",
+              "notannual" = "Less than once per year",
+              "never"     = "Never",
+              "answered"  = "Total")
+
+connection_visit %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Frequency of visits",
+                     total_row      = 5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+- Data are obtained from the [2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey](https://www.abs.gov.au/statistics/people/aboriginal-and-torres-strait-islander-peoples/national-aboriginal-and-torres-strait-islander-health-survey/latest-release).
+
+- The 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey collected information from Aboriginal and/or Torres Strait Islander people of all ages in non-remote and remote areas of Australia, including discrete Aboriginal and/or Torres Strait Islander communities.
+
+- Reported counts and percentages are a likely underestimate due to under-identification.
+
+- Survey data do not represent exact numbers of people. As only a sample of Aboriginal and/or Torres Strait Islander people were surveyed, their results were converted into estimates for the entire Aboriginal and/or Torres Strait Islander population, which were then rounded to the nearest 100 and/or reported as percentages.
+
+- Unknown, not applicable, and not stated survey responses have been excluded.
+:::
+
+\newpage
+
+## Land and Sea Subject to First Nations Legal Rights or Interests
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 15A: By 2030, a 15% increase in Australia’s land mass subject to Aboriginal and Torres Strait Islander people’s legal rights or interests.
+
+This indicator aligns with Closing the Gap Target 15B: By 2030, a 15% increase in areas covered by Aboriginal and Torres Strait Islander people’s legal rights or interests in the sea.
+:::
+
+<br>
+
+```{r}
+# ------------------------------------------------------------------------------
+# Land mass where native title exists
+# Data from Native Title Determinations Outcomes
+# ------------------------------------------------------------------------------
+# Read in Native Title data
+nativetitle_land <- readxl::read_excel(file.path(root_folder, subfolder_ctg,
+                                                 "CTG15_Land_Waters_Data_Tables.xlsx"),
+                                       skip  = 1,
+                                       sheet = "Table CtG15A.1") %>% 
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(model = x2,
+                value = x3,
+                type  = x4,
+                year  = x5) %>%
+  #
+  tidyr::fill(model, value, type) %>% 
+  #
+  dplyr::filter(model == "Actual" & type == "Total area") %>%
+  dplyr::filter(!is.na(vic)) %>% 
+  #
+  dplyr::select(value,
+                year,
+                vic)
+
+# Data wrangling
+nativetitle_land <- nativetitle_land %>% 
+  dplyr::mutate(vic = as.numeric(vic),
+                #
+                value = dplyr::case_when(
+                  value == "Land area" ~ "land_n",
+                  TRUE ~ "land_prop")) %>% 
+  #
+  tidyr::pivot_wider(names_from  = "value",
+                     values_from = "vic") %>% 
+  #
+  dplyr::mutate(land_target_n    = 14934 + (14934 * 0.15),
+                land_target_prop = 6.6 + (6.6 * 0.15))
+
+# ------------------------------------------------------------------------------
+# Sea area where native title exists
+# Data from Native Title Determinations Outcomes
+# ------------------------------------------------------------------------------
+# Read in Native Title data
+nativetitle_sea <- readxl::read_excel(file.path(root_folder, subfolder_ctg,
+                                                "CTG15_Land_Waters_Data_Tables.xlsx"),
+                                      skip  = 1,
+                                      sheet = "Table CtG15B.1") %>% 
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(value = x3,
+                type  = x4,
+                year  = x5) %>%
+  #
+  tidyr::fill(value, type) %>% 
+  #
+  dplyr::filter(value == "Actual") %>%
+  dplyr::filter(year %in% c("2020", "2021", "2022", "2023", "2024")) %>% 
+  #
+  dplyr::select(value = type,
+                year,
+                vic = vic_b)
+
+# Data wrangling
+nativetitle_sea <- nativetitle_sea %>% 
+  dplyr::mutate(vic = as.numeric(vic),
+                #
+                value = dplyr::case_when(
+                  value == "Sea area" ~ "sea_n",
+                  TRUE ~ "sea_prop")) %>% 
+  #
+  tidyr::pivot_wider(names_from  = "value",
+                     values_from = "vic") %>% 
+  #
+  dplyr::mutate(sea_target_n    = 265 + (265 * 0.15),
+                sea_target_prop = 2.6 + (2.6 * 0.15))
+
+# Join land and sea data
+native_title <- nativetitle_land %>% 
+  dplyr::left_join(nativetitle_sea, by = "year")
+```
+
+::: {custom-style="Dotpt"}
+- In 2024, 7.2% of Victoria's land mass (approximately 16,351km^2^) was subject to Aboriginal and/or Torres Strait Islander people's legal rights or interests, an increase from 6.6% (approximately 14,934km^2^) in 2020.
+
+- This is below the Closing the Gap target of 7.6% (approximately 17,174km^2^).
+
+- In 2024, 2.9% of Victoria's sea area (approximately 295km^2^) was subject to Aboriginal and/or Torres Strait Islander people's legal rights or interests, an increase from 2.6% (approximately 265km^2^) in 2020.
+
+- This is below the Closing the Gap target of 3.0% (approximately 305km^2^).
+
+- Detailed maps of areas covered by native title claimant applications, native title determinations, and Indigenous Land Use Agreements can be found on the [National Native Title Tribunal website](https://www.nntt.gov.au/assistance/Geospatial/Pages/Maps.aspx).
+:::
+
+\newpage
+
+```{r}
+# Figure 7A-5
+f_caption_figure("Percentage of land mass and sea area subject to Aboriginal and/or Torres Strait Islander people's legal rights or interests on June 30th, by year")
+
+native_title %>% 
+  dplyr::select(year,
+                land_prop,
+                sea_prop) %>% 
+  #
+  tidyr::pivot_longer(cols     = !year,
+                      names_to = "prop") %>% 
+  #
+  ggplot() +
+  #
+  geom_line(aes(x = year, y = value, group = prop, col = prop),
+            linewidth = 1.5) +
+  #
+  geom_hline(data = native_title,
+             aes(yintercept = land_target_prop),
+             col       = colour_green,
+             linetype  = "dashed",
+             linewidth = 1) + 
+  #
+  geom_hline(data = native_title,
+             aes(yintercept = sea_target_prop),
+             col       = colour_lightblue,
+             linetype  = "dashed",
+             linewidth = 1) +
+  #
+  scale_y_continuous(limits = c(0, 10),
+                     breaks = scales::breaks_width(1),
+                     expand = expansion(add = c(0, 0.125)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  scale_color_manual(values = c(colour_green, colour_lightblue),
+                     labels = c("Land mass", "Sea area"),
+                     name   = NULL) +
+  #
+  labs(x = NULL,
+       y = "Percentage of land mass or sea area") +
+  #
+  theme_classic() +
+  #
+  theme(legend.title       = element_text(size = 9),
+        legend.position    = "bottom",
+        legend.location    = "plot",
+        legend.box.spacing = unit(10, "pt"),
+        legend.margin      = margin(c(0, 10, 0, 0)),
+        #
+        axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0)))
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [National Native Title Tribunal Geospatial Data Model](https://www.nntt.gov.au/assistance/Geospatial/Pages/Spatial-aata.aspx).
+
+- The Closing the Gap Information Repository brings together data from a wide range of data sources to provide up to date for on each Closing the Gap target, indicator, and contextual factors.
+
+- The National Native Title Tribunal Geospatial Data Model brings together information about native title claimant applications, native title determinations, Indigenous estates, registered and notified Indigenous Land Use Agreements, and registered native title bodies corporate.
+
+- Total land mass, total sea area, and the percentage subject to Aboriginal and/or Torres Strait Islander people's legal rights or interests are calculated based on jurisdictional boundaries sourced from [Geoscience Australia](https://www.ga.gov.au/scientific-topics/national-location-information/dimensions/area-of-australia-states-and-territories).
+
+- Land mass subject to Aboriginal and/or Torres Strait Islander people's legal rights or interests includes:
+
+    - Determinations of native title (land subject to a determination that native title exists exclusive or non-exclusive)
+    
+    - Indigenous estates (land grants under various land rights regimes of the states and territories and the Commonwealth)
+
+- The Closing the Gap targets are marked with a dashed green line (land mass) and a dashed blue line (sea area).
+:::
+
+```{r}
+# Table 7A-8
+f_caption_table("Land mass and sea area subject to Aboriginal and/or Torres Strait Islander people's legal rights or interests on June 30th, by year")
+
+native_title %>% 
+  dplyr::select(year,
+                land_n,
+                land_prop,
+                sea_n,
+                sea_prop) %>%
+  #
+  dplyr::arrange(year) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Year", "n", "%", "n", "%")) %>%
+  #
+  flextable::add_header_row(values    = c(" ", "Land mass", "Sea area"),
+                            colwidths = c(1, 2, 2)) %>%
+  #
+  flextable::valign(valign = "bottom",
+                    part   = "header") %>%
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:5),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>%
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::width(j = 1:5,
+                   width = 0.75) %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [National Native Title Tribunal Geospatial Data Model](https://www.nntt.gov.au/assistance/Geospatial/Pages/Spatial-aata.aspx).
+
+- The Closing the Gap Information Repository brings together data from a wide range of data sources to provide up to date for on each Closing the Gap target, indicator, and contextual factors.
+
+- The National Native Title Tribunal Geospatial Data Model brings together information about native title claimant applications, native title determinations, Indigenous estates, registered and notified Indigenous Land Use Agreements, and registered native title bodies corporate.
+
+- Total land mass, total sea area, and the percentage subject to Aboriginal and/or Torres Strait Islander people's legal rights or interests are calculated based on jurisdictional boundaries sourced from [Geoscience Australia](https://www.ga.gov.au/scientific-topics/national-location-information/dimensions/area-of-australia-states-and-territories).
+
+- Land mass subject to Aboriginal and/or Torres Strait Islander people's legal rights or interests includes:
+
+    - Determinations of native title (land subject to a determination that native title exists exclusive or non-exclusive)
+    
+    - Indigenous estates (land grants under various land rights regimes of the states and territories and the Commonwealth)
+:::
+

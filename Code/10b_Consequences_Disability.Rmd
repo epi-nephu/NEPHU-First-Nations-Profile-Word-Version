@@ -1,0 +1,760 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Consequences: Disability"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "10B Consequences Disability ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_lga.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_agesex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_expected.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_grouped_lga.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_grouped_agesex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_expected.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 10B-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 10B-"))
+  
+  return(caption)
+  
+}
+```
+
+### How many Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment are living with a disability?
+
+# Self-Reported Disability Status
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Self-assessed disability status
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+disability_status <- f_read_natsihs_sex("Indicator_Vic_Sex_Disability_Status.csv")
+
+# Data wrangling
+disability_status <- disability_status %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(has_profound_core_activity_limitation_n:has_no_disability_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(profound_n     = has_profound_core_activity_limitation_n,
+                severe_n       = has_severe_core_activity_limitation_n,
+                moderate_n     = has_moderate_core_activity_limitation_n,
+                mild_n         = has_mild_core_activity_limitation_n,
+                restriction_n  = has_a_schooling_employment_restriction_only_n,
+                nolimitation_n = has_no_limitation_or_specific_restriction_n,
+                nodisability_n = has_no_disability_n) %>% 
+  #
+  dplyr::mutate(across(profound_n:nodisability_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("profound"),
+                starts_with("severe"),
+                starts_with("moderate"),
+                starts_with("mild"),
+                starts_with("restriction"),
+                starts_with("nolimitation"),
+                starts_with("nodisability"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Type of disability
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+disability_type <- f_read_natsihs_sex("Indicator_Vic_Sex_Disability_Type.csv")
+
+# Data wrangling
+disability_type <- disability_type %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(sensory_and_speech_n:other_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(sensory_n    = sensory_and_speech_n,
+                learning_n   = learning_and_understanding_n,
+                physical_n   = physical_restriction_n,
+                headinjury_n = head_injury_stroke_or_acquired_brain_injury_n) %>% 
+  #
+  dplyr::mutate(across(sensory_n:other_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("sensory"),
+                starts_with("learning"),
+                starts_with("physical"),
+                starts_with("psychosocial"),
+                starts_with("headinjury"),
+                starts_with("other"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 28% of Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne reported that they were living with a disability that results in specific limitations with any core activities. This equates to approximately 11,000 Aboriginal and/or Torres Strait Islander people.
+
+- Males were more likely than females to be living with a disability that results in specific restriction when participating in schooling or employment activities (20% vs. 2.8%).
+
+- The most commonly reported disabilities by Aboriginal and/or Torres Strait Islander survey respondents living in Greater Melbourne were physical restrictions (31% of survey respondents, approximately 9,900 people), and sensory or speech issues (21% of survey respondents, approximately 6,600 people).
+:::
+
+\newpage
+
+```{r}
+# Figure 10B-1
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents living with a disability aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander in each disability status category, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- disability_status %>%
+  dplyr::select(-nodisability_n) %>% 
+  #
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("profound_n", "severe_n", "moderate_n", "mild_n", 
+                                    "restriction_n", "nolimitation_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 500,
+                     y_expand   = 250,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Profound", "Severe", "Moderate", "Mild", 
+                              "Restriction", "No limitation"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- disability_status %>%
+  dplyr::select(-nodisability_prop) %>% 
+  #
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("profound_prop", "severe_prop", "moderate_prop", 
+                                    "mild_prop", "restriction_prop", "nolimitation_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 25,
+                     y_breaks   = 5,
+                     y_expand   = 0.5,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Profound", "Severe", "Moderate", "Mild", 
+                              "Restriction", "No limitation"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- A person is defined as having a disability if they have an impairment which restricts their everyday activities and has lasted, or is expected to last, for at least six months. A person with a disability is classified by whether they have:
+
+    - a specific limitation with any core activities (mobility, communication and self-care),
+
+    - a specific restriction when participating in schooling or employment activities, or
+
+    - no specific limitation with core activities or restriction with schooling or employment activities.
+:::
+
+\newpage
+
+```{r}
+# Table 10B-1
+f_caption_table("Self-reported disability status for people who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("profound"     = "Profound limitation",
+              "severe"       = "Severe limitation",
+              "moderate"     = "Moderate limitation",
+              "mild"         = "Mild limitation",
+              "restriction"  = "Schooling/employment restriction",
+              "nolimitation" = "No limitation or restriction",
+              "nodisability" = "No disability",
+              "answered"     = "Total")
+
+disability_status %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Disability status",
+                     total_row      = 8)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- A person is defined as having a disability if they have an impairment which restricts their everyday activities and has lasted, or is expected to last, for at least six months. A person with a disability is classified by whether they have:
+
+    - a specific limitation with any core activities (mobility, communication and self-care),
+
+    - a specific restriction when participating in schooling or employment activities, or
+
+    - no specific limitation with core activities or restriction with schooling or employment activities.
+:::
+
+\newpage
+
+```{r}
+# Figure 10B-2
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents with specific types of disability who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- disability_type %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("sensory_n", "learning_n", "physical_n", 
+                                    "psychosocial_n", "headinjury_n", "other_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 250,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("Sensory", "Learning", "Physical", 
+                              "Psychosocial", "Head injury*", "Other"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- disability_type %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("sensory_prop", "learning_prop", "physical_prop", 
+                                    "psychosocial_prop", "headinjury_prop", "other_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 50,
+                     y_breaks   = 5,
+                     y_expand   = 0.5,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("Sensory", "Learning", "Physical", 
+                              "Psychosocial", "Head injury*", "Other"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- A person is defined as having a disability if they have an impairment which restricts their everyday activities and has lasted, or is expected to last, for at least six months. A person with a disability is classified by whether they have:
+
+    - a specific limitation with any core activities (mobility, communication and self-care),
+
+    - a specific restriction when participating in schooling or employment activities, or
+
+    - no specific limitation with core activities or restriction with schooling or employment activities.
+
+- 'Head injury' includes head injury, stroke, or acquired brain injury.
+:::
+
+\newpage
+
+```{r}
+# Table 10B-2
+f_caption_table("Types of disability for people with a disability who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("sensory"      = "Sensory and speech",
+              "learning"     = "Learning and understanding",
+              "physical"     = "Physical restriction",
+              "psychosocial" = "Psychosocial",
+              "headinjury"   = "Head injury*",
+              "other"        = "Other disability",
+              "answered"     = "Total")
+
+disability_type %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Type of disability",
+                     total_row      = 7)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- A person is defined as having a disability if they have an impairment which restricts their everyday activities and has lasted, or is expected to last, for at least six months. A person with a disability is classified by whether they have:
+
+    - a specific limitation with any core activities (mobility, communication and self-care),
+
+    - a specific restriction when participating in schooling or employment activities, or
+
+    - no specific limitation with core activities or restriction with schooling or employment activities.
+
+- 'Head injury' includes head injury, stroke, or acquired brain injury.
+:::
+
+\newpage
+
+# Assistance with Core Activities
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Assistance with core activities, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+disability_assist_lga <- f_read_census_lga("Aboriginal_Disability_Assistance_LGA.csv",
+                                           variable = "assist") %>% 
+  #
+  dplyr::filter(assist != "Not stated")
+
+# Data wrangling
+disability_assist_lga <- disability_assist_lga %>%
+  #
+  dplyr::mutate(assist = dplyr::case_when(
+    assist == "Has need for assistance with core activities" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_lga(variable = assist,
+                       level    = "person",
+                       dichot   = "yes")
+
+# ------------------------------------------------------------------------------
+# Assistance with core activities, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+disability_assist_agesex <- f_read_census_agesex("Aboriginal_Disability_Assistance_AgeSex.csv",
+                                                 variable = "assist") %>% 
+  #
+  dplyr::filter(assist != "Not stated")
+
+# Data wrangling
+disability_assist_agesex <- disability_assist_agesex %>% 
+  #
+  dplyr::mutate(assist = dplyr::case_when(
+    assist == "Has need for assistance with core activities" ~ "yes",
+    TRUE ~ "no")) %>% 
+  #
+  f_wrangle_census_agesex(variable = assist,
+                          dichot   = "yes")
+```
+
+
+```{r, include = FALSE}
+#
+results <- list()
+data    <- disability_assist_lga
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_n)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_prop)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_prop)
+
+results$rank_diff <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::arrange(desc(aboriginal_difference)) %>% 
+  dplyr::select(lga_name,
+                aboriginal_difference)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the ABS Census 2021.
+
+- Overall, 9.4% (n = 1,116) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census required assistance with core activities. This is higher than for non-Indigenous people living in the NEPHU catchment (6.0%).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who required assistance with core activities ranged from 211 (Hume LGA) to 20 (Nillumbik LGA).
+
+- The gap between Aboriginal and/or Torres Strait Islander and non-Indigenous people was biggest for Yarra Ranges and Hume LGAs.
+
+- The percentage of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who required assistance with core activities ranged from 12% (Hume LGA) to 5.4% (Nillumbik LGA).
+
+- The percentage of people living in the NEPHU catchment who required assistance with core activities increased with increasing age for both males and females.
+
+- There was also a second peak in the number of people requiring assistance with core activities for both males and females aged 10-19 years.
+
+- More Aboriginal and/or Torres Strait Islander people required assistance with core activities than expected based on the non-Indigenous population across most age groups and both genders.
+:::
+
+\newpage
+
+```{r}
+# Figure 10B-3
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who require assistance with core activities, NEPHU catchment, by LGA, 2021")
+
+figure_number <- disability_assist_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_n,
+              y_max      = NA,
+              y_breaks   = 20,
+              y_expand   = 12,
+              y_title    = "Number of people",
+              plot_tag   = "A")
+
+figure_percent <- disability_assist_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_lga(y_variable = aboriginal_prop,
+              y_max      = 25,
+              y_breaks   = 5,
+              y_expand   = 0.5,
+              y_title    = "Percentage of people",
+              plot_tag   = "B")
+
+figure_number + figure_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- People requiring assistance with core activities are those needing assistance in their day to day lives in one or more of the three core activity areas of self-care, mobility, and communication because of:
+
+    - a long-term health condition (lasting six months or more),
+  
+    - a disability (lasting six months or more), or
+
+    - old age.
+:::
+
+\newpage
+
+```{r}
+# Figure 10B-4
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who require assistance with core activities, NEPHU catchment, by LGA, 2021")
+
+disability_assist_lga %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_expected(variable = lga_name,
+                   y_breaks = 20,
+                   y_expand = 15)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- People requiring assistance with core activities are those needing assistance in their day to day lives in one or more of the three core activity areas of self-care, mobility, and communication because of:
+
+    - a long-term health condition (lasting six months or more),
+  
+    - a disability (lasting six months or more), or
+
+    - old age.
+:::
+
+\newpage
+
+```{r}
+# Table 10B-3
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who require assistance with core activities, NEPHU catchment, by LGA, 2021")
+
+disability_assist_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  f_table_expected(variable       = lga_name,
+                   variable_label = "LGA",
+                   group_label    = " ",
+                   total_row      = 13)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- People requiring assistance with core activities are those needing assistance in their day to day lives in one or more of the three core activity areas of self-care, mobility, and communication because of:
+
+    - a long-term health condition (lasting six months or more),
+  
+    - a disability (lasting six months or more), or
+
+    - old age.
+:::
+
+\newpage
+
+```{r}
+# Figure 10B-5
+f_caption_figure("(A) Number and (B) percentage of people who identified as Aboriginal and/or Torres Strait Islander and who require assistance with core activities, NEPHU catchment, by age and sex, 2021")
+
+figure_female_number <- disability_assist_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_n,
+                 y_max      = 150,
+                 y_breaks   = 15,
+                 y_expand   = 3,
+                 y_title    = "Number of females",
+                 plot_title = "Females",
+                 plot_tag   = "A")
+
+figure_female_percent <- disability_assist_agesex %>%
+  f_graph_agesex(sex        = "Female",
+                 y_variable = aboriginal_prop,
+                 y_max      = 100,
+                 y_breaks   = 10,
+                 y_expand   = 1,
+                 y_title    = "Percentage of females",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_male_number <- disability_assist_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_n,
+                 y_max      = 150,
+                 y_breaks   = 15,
+                 y_expand   = 3,
+                 y_title    = "Number of males",
+                 plot_title = "Males",
+                 plot_tag   = "A")
+
+figure_male_percent <- disability_assist_agesex %>%
+  f_graph_agesex(sex        = "Male",
+                 y_variable = aboriginal_prop,
+                 y_max      = 100,
+                 y_breaks   = 10,
+                 y_expand   = 1,
+                 y_title    = "Percentage of males",
+                 plot_title = " ",
+                 plot_tag   = "B")
+
+figure_female_number + figure_female_percent
+figure_male_number + figure_male_percent
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- People requiring assistance with core activities are those needing assistance in their day to day lives in one or more of the three core activity areas of self-care, mobility, and communication because of:
+
+    - a long-term health condition (lasting six months or more),
+  
+    - a disability (lasting six months or more), or
+
+    - old age.
+:::
+
+\newpage
+
+```{r} 
+# Figure 10B-6
+f_caption_figure("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who require assistance with core activities, NEPHU catchment, by age and sex, 2021") 
+
+disability_assist_agesex %>%  
+  dplyr::filter(age_group %in% age_group_lvl) %>%  
+  # 
+  dplyr::mutate(age_group = factor(age_group, levels = age_group_lvl)) %>% 
+  #
+  f_graph_expected(variable = age_group, 
+                   y_breaks = 15, 
+                   y_expand = 3) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- People requiring assistance with core activities are those needing assistance in their day to day lives in one or more of the three core activity areas of self-care, mobility, and communication because of:
+
+    - a long-term health condition (lasting six months or more),
+  
+    - a disability (lasting six months or more), or
+
+    - old age.
+:::
+
+\newpage
+
+```{r} 
+# Table 10B-4
+f_caption_table("Observed vs. expected number of Aboriginal and/or Torres Strait Islander people who require assistance with core activities, NEPHU catchment, by age and sex, 2021") 
+
+disability_assist_agesex %>% 
+  dplyr::filter(sex == "Female") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Females",
+                   total_row      = 12)
+  
+disability_assist_agesex %>% 
+  dplyr::filter(sex == "Male") %>%  
+  # 
+  f_table_expected(variable       = age_group,
+                   variable_label = "Age group",
+                   group_label    = "Males",
+                   total_row      = 12)
+``` 
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- People requiring assistance with core activities are those needing assistance in their day to day lives in one or more of the three core activity areas of self-care, mobility, and communication because of:
+
+    - a long-term health condition (lasting six months or more),
+  
+    - a disability (lasting six months or more), or
+
+    - old age.
+:::
+

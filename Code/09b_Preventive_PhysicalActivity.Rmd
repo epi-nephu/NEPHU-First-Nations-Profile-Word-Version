@@ -1,0 +1,656 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Seeking and Risk Behaviours: Physical Activity"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "09B Preventive Physical Activity ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Data prep", "f_read_natsihs_sex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_lga.R"))
+source(here::here("Code", "Functions", "Data prep", "f_read_census_agesex.R"))
+source(here::here("Code", "Functions", "Data prep", "f_wrangle_census_agesex.R"))
+ 
+source(here::here("Code", "Functions", "Graphs", "f_graph_survey_sex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_grouped.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_survey_sex.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_grouped_lga.R"))
+source(here::here("Code", "Functions", "Tables", "f_table_grouped_agesex.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 9B-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 9B-"))
+  
+  return(caption)
+  
+}
+```
+
+### What health promoting or health risk behaviours are Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment undertaking?
+
+# Physical Activity
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Physical activity meeting guidelines
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+activity_guidelines <- f_read_natsihs_sex("Indicator_Vic_Sex_Activity_Guidelines.csv")
+
+# Data wrangling
+activity_guidelines <- activity_guidelines %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(answered_n = sum(across(met_2014_guidelines_for_age_group_18_64_years_n:did_not_meet_2014_guidelines_for_age_group_18_64_years_n))) %>% 
+  dplyr::ungroup() %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::rename(guidelines_n    = met_2014_guidelines_for_age_group_18_64_years_n,
+                notguidelines_n = did_not_meet_2014_guidelines_for_age_group_18_64_years_n) %>% 
+  #
+  dplyr::mutate(across(guidelines_n:notguidelines_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("guidelines"),
+                starts_with("notguidelines"),
+                starts_with("answered"))
+
+# ------------------------------------------------------------------------------
+# Type of physical activity
+# Data from ABS National Aboriginal and Torres Strait Islander Health Survey
+# ------------------------------------------------------------------------------
+# Read in NATSIHS data
+activity_type <- f_read_natsihs_sex("Indicator_Vic_Sex_Activity_Type.csv")
+
+# Data wrangling
+activity_type <- activity_type %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(moderate_n = moderate_physical_activity_excl_workplace_n + moderate_workplace_physical_activity_n,
+                vigorous_n = vigorous_physical_activity_excl_workplace_n + vigorous_workplace_physical_activity_n,
+                answered_n = total_n - not_applicable_n) %>% 
+  dplyr::ungroup() %>% 
+  #
+  dplyr::rename(walkingexercise_n = walking_for_exercise_recreation_or_sport_n,
+                walkingtravel_n   = walking_to_get_to_places_n,
+                strength_n        = strength_or_toning_n,
+                none_n            = no_physical_activity_in_last_week_n) %>% 
+  #
+  dplyr::select(-moderate_physical_activity_excl_workplace_n,
+                -moderate_workplace_physical_activity_n,
+                -vigorous_physical_activity_excl_workplace_n,
+                -vigorous_workplace_physical_activity_n,
+                -not_applicable_n,
+                -total_n) %>% 
+  #
+  janitor::adorn_totals(fill = "Total") %>% 
+  #
+  dplyr::mutate(across(walkingexercise_n:vigorous_n,
+                       ~ . / answered_n * 100,
+                       .names = "{.col}_prop"),
+                #
+                answered_prop = answered_n / answered_n * 100) %>% 
+  #
+  dplyr::rename_with(~ stringr::str_replace(., "_n_prop$", "_prop"), ends_with("_n_prop")) %>% 
+  #
+  dplyr::select(sex,
+                starts_with("none"),
+                starts_with("walkingtravel"),
+                starts_with("walkingexercise"),
+                starts_with("strength"),
+                starts_with("moderate"),
+                starts_with("vigorous"),
+                starts_with("answered"))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the 2022-23 ABS National Aboriginal and Torres Strait Islander Health Survey.
+
+- Overall, 11% of Aboriginal and/or Torres Strait Islander adult survey respondents (aged 18-64 years) living in Greater Melbourne met the weekly physical activity guidelines. This equates to approximately 2,300 Aboriginal and/or Torres Strait Islander adults.
+
+- Males aged 18-64 years were more likely to have met the weekly physical activity guidelines than females (15% vs. 4.5%).
+
+- The most commonly reported type of physical activity undertaken by Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne during the week prior to the survey was walking to get to places (44%) followed by moderate physical activity (41%).
+
+- 19% of Aboriginal and/or Torres Strait Islander survey respondents aged 15 years and over living in Greater Melbourne reported no physical activity during the week prior to the survey. Females were more likely to report no physical activity than males (27% vs. 12%).
+:::
+
+```{r}
+# Table 9B-1
+f_caption_table("Physical activity for people aged 18-64 years who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("guidelines"    = "Yes",
+              "notguidelines" = "No",
+              "answered"      = "Total")
+
+activity_guidelines %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Met guideline",
+                     total_row      = 3)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Physical activity was assessed using the [2014 Australian Physical Activity and Sedentary Behaviour Guidelines](https://www.health.gov.au/topics/physical-activity-and-exercise/physical-activity-and-exercise-guidelines-for-all-australians). The Guidelines recommend a minimum level of physical activity during the week based on age and the types of activity undertaken.
+:::
+
+\newpage
+
+```{r}
+# Figure 9B-1
+f_caption_figure("(A) Estimated number of people and (B) percentage of survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander and types of physical activity during the week prior to the survey, Greater Melbourne, by sex, 2022-2023")
+
+figure_number <- activity_type %>%
+  f_graph_survey_sex(plot_tag   = "A",
+                     x_levels   = c("none_n", "walkingtravel_n", "walkingexercise_n", 
+                                    "strength_n", "moderate_n", "vigorous_n"),
+                     x_labels   = NULL,
+                     y_variable = n,
+                     y_max      = NA,
+                     y_breaks   = 1000,
+                     y_expand   = 800,
+                     y_title    = "Estimated number of people") +
+  #
+  scale_x_discrete(labels = c("No activity", "Walking\nfor travel", "Walking\nfor exercise",
+                              "Strength\n or toning", "Moderate\nintensity", "Vigorous\nintensity"),
+                   guide  = guide_axis(angle = 90))
+
+figure_percent <- activity_type %>%
+  f_graph_survey_sex(plot_tag   = "B",
+                     x_levels   = c("none_prop", "walkingtravel_prop", "walkingexercise_prop", 
+                                    "strength_prop", "moderate_prop", "vigorous_prop"),
+                     x_labels   = NULL,
+                     y_variable = prop,
+                     y_max      = 100,
+                     y_breaks   = 10,
+                     y_expand   = 1,
+                     y_title    = "Percentage of survey respondents") +
+  #
+  scale_x_discrete(labels = c("No activity", "Walking\nfor travel", "Walking\nfor exercise",
+                              "Strength\n or toning", "Moderate\nintensity", "Vigorous\nintensity"),
+                   guide  = guide_axis(angle = 90))
+
+figure_number + figure_percent + 
+  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents were asked about the types of physical activity undertaken during the week prior to the survey. Totals may not sum to 100% as respondents could select multiple types of activities.
+
+- The moderate and vigorous intensity categories include physical activity undertaken both at work and outside of work.
+:::
+
+\newpage
+
+```{r}
+# Table 9B-2
+f_caption_table("Types of physical activity undertaken during the week prior to the survey for survey respondents aged 15 years and over who identified as Aboriginal and/or Torres Strait Islander, Greater Melbourne, by sex, 2022-2023")
+
+x_labels <- c("none"            = "No activity", 
+              "walkingtravel"   = "Walking for travel", 
+              "walkingexercise" = "Walking for exercise",
+              "strength"        = "Strength or toning", 
+              "moderate"        = "Moderate intensity", 
+              "vigorous"        = "Vigorous intensity",
+              "answered"        = "Total")
+
+activity_type %>% 
+  f_table_survey_sex(x_labels       = x_labels,
+                     variable_label = "Type of activity",
+                     total_row      = 7)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_natsihs)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_survey_estimate)`
+
+`r knitr::asis_output(note_caveat_unknown_survey)`
+
+- Survey respondents were asked about the types of physical activity undertaken during the week prior to the survey. Totals may not sum to 100% as respondents could select multiple types of activities.
+
+- The moderate and vigorous intensity categories include physical activity undertaken both at work and outside of work.
+:::
+
+\newpage
+
+# Mode of Transport to Work
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Mode of transport to work, by LGA
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------
+# Read in Census data
+activity_transport_lga <- f_read_census_lga("Aboriginal_Activity_Transport_LGA.csv",
+                                            variable = "transport") %>% 
+  #
+  dplyr::filter(!transport %in% c("Mode not stated", "Not applicable"))
+
+# Data wrangling
+activity_transport_non_aboriginal <- activity_transport_lga %>%
+  #
+  dplyr::mutate(transport = dplyr::case_when(
+    transport == "Worked at home or Did not go to work" ~ "WFH or did not work",
+    TRUE ~ transport)) %>% 
+  #
+  f_wrangle_census_lga(variable = transport,
+                       level    = "person",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(active_prop   = non_aboriginal_n_active_transport / non_aboriginal_total * 100,
+                public_prop   = non_aboriginal_n_public_transport / non_aboriginal_total * 100,
+                vehicle_prop  = non_aboriginal_n_vehicle / non_aboriginal_total * 100,
+                other_prop    = non_aboriginal_n_other_mode / non_aboriginal_total * 100,
+                notravel_prop = non_aboriginal_n_wfh_or_did_not_work / non_aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                active_n = non_aboriginal_n_active_transport,
+                active_prop,
+                public_n = non_aboriginal_n_public_transport,
+                public_prop,
+                other_n = non_aboriginal_n_other_mode,
+                other_prop,
+                vehicle_n = non_aboriginal_n_vehicle,
+                vehicle_prop,
+                notravel_n = non_aboriginal_n_wfh_or_did_not_work,
+                notravel_prop,
+                non_aboriginal_total)
+
+activity_transport_lga <- activity_transport_lga %>%
+  #
+  dplyr::mutate(transport = dplyr::case_when(
+    transport == "Worked at home or Did not go to work" ~ "WFH or did not work",
+    TRUE ~ transport)) %>% 
+  #
+  f_wrangle_census_lga(variable = transport,
+                       level    = "person",
+                       dichot   = "no") %>% 
+  #
+  dplyr::mutate(active_prop   = aboriginal_n_active_transport / aboriginal_total * 100,
+                public_prop   = aboriginal_n_public_transport / aboriginal_total * 100,
+                vehicle_prop  = aboriginal_n_vehicle / aboriginal_total * 100,
+                other_prop    = aboriginal_n_other_mode / aboriginal_total * 100,
+                notravel_prop = aboriginal_n_wfh_or_did_not_work / aboriginal_total * 100) %>% 
+  #
+  dplyr::select(lga_name,
+                active_n = aboriginal_n_active_transport,
+                active_prop,
+                public_n = aboriginal_n_public_transport,
+                public_prop,
+                other_n = aboriginal_n_other_mode,
+                other_prop,
+                vehicle_n = aboriginal_n_vehicle,
+                vehicle_prop,
+                notravel_n = aboriginal_n_wfh_or_did_not_work,
+                notravel_prop,
+                aboriginal_total)
+
+# ------------------------------------------------------------------------------------
+# Mode of transport to work,, by age and sex
+# Data from ABS Census using TableBuilderPro
+# ------------------------------------------------------------------------------------
+# Read in Census data
+activity_transport_agesex <- f_read_census_agesex("Aboriginal_Activity_Transport_AgeSex.csv",
+                                                  variable = "transport") %>% 
+  #
+  dplyr::filter(!transport %in% c("Mode not stated", "Not applicable"))
+
+# Data wrangling
+activity_transport_agesex <- activity_transport_agesex %>%
+  #
+  dplyr::mutate(transport = dplyr::case_when(
+    transport == "Worked at home or Did not go to work" ~ "WFH or did not work",
+    TRUE ~ transport)) %>% 
+  #
+  f_wrangle_census_agesex(variable = transport,
+                          dichot   = "no") %>% 
+  #
+  dplyr::mutate(aboriginal_total = aboriginal_n_active_transport + aboriginal_n_public_transport + aboriginal_n_vehicle + aboriginal_n_other_mode + aboriginal_n_wfh_or_did_not_work,
+                #
+                active_prop   = aboriginal_n_active_transport / aboriginal_total * 100,
+                public_prop   = aboriginal_n_public_transport / aboriginal_total * 100,
+                vehicle_prop  = aboriginal_n_vehicle / aboriginal_total * 100,
+                other_prop    = aboriginal_n_other_mode / aboriginal_total * 100,
+                notravel_prop = aboriginal_n_wfh_or_did_not_work / aboriginal_total * 100) %>% 
+  #
+  dplyr::mutate(across(where(is.numeric), ~replace(., is.na(.), 0)),
+                across(where(is.numeric), ~replace(., is.nan(.), 0))) %>% 
+  #
+  dplyr::select(age_group,
+                sex,
+                active_n = aboriginal_n_active_transport,
+                active_prop,
+                public_n = aboriginal_n_public_transport,
+                public_prop,
+                other_n = aboriginal_n_other_mode,
+                other_prop,
+                vehicle_n = aboriginal_n_vehicle,
+                vehicle_prop,
+                notravel_n = aboriginal_n_wfh_or_did_not_work,
+                notravel_prop,
+                aboriginal_total)
+```
+
+
+```{r}
+#
+results <- list()
+data    <- activity_transport_lga
+
+results$rank_n <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::mutate(active_public_n = active_n + public_n) %>% 
+  dplyr::arrange(desc(active_public_n)) %>% 
+  dplyr::select(lga_name,
+                active_public_n)
+
+results$rank_prop <- data %>% 
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  dplyr::mutate(active_public_prop = active_prop + public_prop) %>% 
+  dplyr::arrange(desc(active_public_prop)) %>% 
+  dplyr::select(lga_name,
+                active_public_prop)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the ABS Census 2021.
+
+- Overall, 2.5% (n = 124) of people living in the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census took an active mode of transport to work and a further 5.6% (n = 279) took public transport. This is similar to the percentage of non-Indigenous people living in the NEPHU catchment who took an active mode of transport to work (2.4%) and higher than the percentage of non-Indigenous people living in the NEPHU catchment who took public transport (4.9%).
+
+- The number of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who used an active mode of transport or took public transport to work ranged from 76 (Darebin LGA) to 3 (Manningham LGA).
+
+- The percentage of people living in different LGAs within the NEPHU catchment who identified as Aboriginal and/or Torres Strait Islander in the Census who used an active mode of transport or took public transport to work ranged from 20% (Yarra LGA) to 2.2% (Manningham LGA).
+
+- Younger people were more likely to use an active mode of transport or public transport.
+:::
+
+\newpage
+
+```{r}
+# Figure 9B-2
+f_caption_figure("Mode of transport to work for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+activity_transport_lga %>%
+  dplyr::filter(lga_name %in% nephu_lga) %>% 
+  #
+  f_graph_grouped(x_variable = lga_name,
+                  #
+                  factor_levels  = c("active_n", "public_n", "other_n", "vehicle_n", "notravel_n"),
+                  factor_colours = c(colour_lightblue, colour_green, colour_yellow, colour_orange, colour_burgundy),
+                  factor_labels  = c("Active transport", "Public transport", "Other modes", "Vehicle", "Did not travel"),
+                  #
+                  y_breaks = 100,
+                  y_expand = 85) +
+  #
+  guides(fill = guide_legend(reverse = FALSE))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The population for this indicator is people aged 15 years and over who were employed during the week before the ABS Census 2021.
+
+- The ABS Census 2021 asked the following question: 'How did the person get to work on Tuesday 10 August 2021?'. Respondents could select up to three modes of transport.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night and during the week preceding it, resulting in a greater number of people working from home during this time. Working from home is included in the 'Did not travel' category.
+:::
+
+\newpage
+
+```{r}
+# Table 9B-3
+f_caption_table("Mode of transport to work for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by LGA, 2021")
+
+activity_transport_lga %>% 
+  dplyr::filter(lga_name %in% c(nephu_lga, "NEPHU")) %>%
+  #
+  dplyr::mutate(active_prop   = round(active_prop, digits = 1),
+                public_prop   = round(public_prop, digits = 1),
+                vehicle_prop  = round(vehicle_prop, digits = 1),
+                other_prop    = round(other_prop, digits = 1),
+                notravel_prop = round(notravel_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_lga(table_headers = c("n", "%", "n", "%", "n", "%", "n", "%", "n", "%"),
+                      group_headers = c("Active transport", "Public transport", "Other\nmodes", 
+                                        "Vehicle", "Did not\ntravel"),
+                      group_widths  = c(2, 2, 2, 2, 2),
+                      last_column   = 12) %>% 
+  #
+  flextable::width(j = 1,
+                   width = 1.0) %>% 
+  #
+  flextable::width(j = 2:12,
+                   width = 0.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The population for this indicator is people aged 15 years and over who were employed during the week before the ABS Census 2021.
+
+- The ABS Census 2021 asked the following question: 'How did the person get to work on Tuesday 10 August 2021?'. Respondents could select up to three modes of transport.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night and during the week preceding it, resulting in a greater number of people working from home during this time. Working from home is included in the 'Did not travel' category.
+:::
+
+\newpage
+
+```{r}
+# Figure 9B-3
+f_caption_figure("Mode of transport to work for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021")
+
+activity_transport_agesex %>%
+  dplyr::filter(age_group %in% age_group_lvl) %>% 
+  #
+  f_graph_grouped(x_variable = age_group,
+                  #
+                  factor_levels  = c("active_n", "public_n", "other_n", "vehicle_n", "notravel_n"),
+                  factor_colours = c(colour_lightblue, colour_green, colour_yellow, colour_orange, colour_burgundy),
+                  factor_labels  = c("Active transport", "Public transport", "Other modes", "Vehicle", "Did not travel"),
+                  #
+                  y_breaks = 100,
+                  y_expand = 35) +
+  #
+  facet_wrap(~sex,
+             axes = "all") +
+  #
+  guides(fill = guide_legend(reverse = FALSE))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- The population for this indicator is people aged 15 years and over who were employed during the week before the ABS Census 2021.
+
+- The ABS Census 2021 asked the following question: 'How did the person get to work on Tuesday 10 August 2021?'. Respondents could select up to three modes of transport.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night and during the week preceding it, resulting in a greater number of people working from home during this time. Working from home is included in the 'Did not travel' category.
+:::
+
+\newpage
+
+```{r}
+# Table 9B-4
+f_caption_table("Mode of transport to work for people who identified as Aboriginal and/or Torres Strait Islander, NEPHU catchment, by age and sex, 2021")
+
+activity_transport_agesex %>% 
+  dplyr::mutate(active_prop   = round(active_prop, digits = 1),
+                public_prop   = round(public_prop, digits = 1),
+                vehicle_prop  = round(vehicle_prop, digits = 1),
+                other_prop    = round(other_prop, digits = 1),
+                notravel_prop = round(notravel_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_agesex(sex_name = "Female",
+                         #
+                         table_headers = c("n", "%", "n", "%", "n", "%", "n", "%", "n", "%"),
+                         group_headers = c("Active transport", "Public transport", "Other\nmodes", 
+                                           "Vehicle", "Did not\ntravel"),
+                         group_widths  = c(2, 2, 2, 2, 2),
+                         last_column   = 12) %>% 
+  #
+  flextable::width(j = 2:12,
+                   width = 0.5)
+
+activity_transport_agesex %>% 
+  dplyr::mutate(active_prop   = round(active_prop, digits = 1),
+                public_prop   = round(public_prop, digits = 1),
+                vehicle_prop  = round(vehicle_prop, digits = 1),
+                other_prop    = round(other_prop, digits = 1),
+                notravel_prop = round(notravel_prop, digits = 1)) %>% 
+  #
+  f_table_grouped_agesex(sex_name = "Male",
+                         #
+                         table_headers = c("n", "%", "n", "%", "n", "%", "n", "%", "n", "%"),
+                         group_headers = c("Active transport", "Public transport", "Other\nmodes", 
+                                           "Vehicle", "Did not\ntravel"),
+                         group_widths  = c(2, 2, 2, 2, 2),
+                         last_column   = 12) %>% 
+  #
+  flextable::width(j = 2:12,
+                   width = 0.5)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_census)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_unknown_agesex)`
+
+- The population for this indicator is people aged 15 years and over who were employed during the week before the ABS Census 2021.
+
+- The ABS Census 2021 asked the following question: 'How did the person get to work on Tuesday 10 August 2021?'. Respondents could select up to three modes of transport.
+
+- A number of regions across the state were in various stages of lockdown on 2021 Census night and during the week preceding it, resulting in a greater number of people working from home during this time. Working from home is included in the 'Did not travel' category.
+:::
+

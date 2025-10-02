@@ -1,0 +1,981 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Health Consequences: Mortality"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "10N Consequences Mortality ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_line_comparison.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_line_sex.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_bar_comparison.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_bar_horizontal.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_cod.R"))
+```
+
+**Table of Contents**
+
+```{r}
+#
+block_toc(level = 2)
+```
+
+\newpage
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 10N-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 10N-"))
+  
+  return(caption)
+  
+}
+```
+
+### What are the most common causes of death for Aboriginal and/or Torres Strait Islander people living in the NEPHU catchment?
+
+# Mortality
+
+```{r}
+# ------------------------------------------------------------------------------
+# Number of deaths, Victoria
+# Data from ABS Technical Report (https://www.abs.gov.au/articles/technical-note-impact-using-multiple-sources-deriving-indigenous-status-deaths-2023-changes-victoria-and-coroner-referred-deaths)
+# ------------------------------------------------------------------------------
+# Read in ABS data
+mortality_number <- readxl::read_excel(file.path(root_folder, subfolder_death, "ABS_Tech_Report_Aboriginal_Deaths_Ascertainment_Number.xlsx"),
+                                       skip  = 2) %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::rename(notenhanced_2022 = x2022,
+                notenhanced_2023 = x2023_no_cod_sources_b,
+                enhanced_2023    = x2023_incl_cod_sources_c) %>%
+  #
+  dplyr::filter(!is.na(enhanced_2023)) %>% 
+  #
+  dplyr::select(indigenous_status,
+                notenhanced_2022,
+                notenhanced_2023,
+                enhanced_2023)
+
+# ------------------------------------------------------------------------------
+# Age-standardised death rate, Victoria
+# Data from ABS Technical Report (https://www.abs.gov.au/articles/technical-note-impact-using-multiple-sources-deriving-indigenous-status-deaths-2023-changes-victoria-and-coroner-referred-deaths)
+# ------------------------------------------------------------------------------
+# Read in ABS data
+mortality_rate <- readxl::read_excel(file.path(root_folder, subfolder_death, "ABS_Tech_Report_Aboriginal_Deaths_Ascertainment_Rate.xlsx"),
+                                       skip  = 2) %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::rename(sex       = indigenous_status_by_sex,
+                rate_2023 = x2023_incl_cod_sources_g_4) %>%
+  #
+  dplyr::filter(!is.na(rate_2023)) %>% 
+  #
+  dplyr::mutate(indigenous_status = dplyr::case_when(
+    row_number() %in% 1:3 ~ "rate_aboriginal",
+    row_number() %in% 4:6 ~ "rate_non_aboriginal",
+    TRUE ~ NA_character_)) %>% 
+  #
+  dplyr::select(indigenous_status,
+                sex,
+                rate_2023)
+
+# ------------------------------------------------------------------------------
+# Median age at death, Victoria
+# Data from ABS Technical Report (https://www.abs.gov.au/articles/technical-note-impact-using-multiple-sources-deriving-indigenous-status-deaths-2023-changes-victoria-and-coroner-referred-deaths)
+# ------------------------------------------------------------------------------
+# Read in ABS data
+mortality_age_aboriginal <- readxl::read_excel(file.path(root_folder, subfolder_death, "ABS_Tech_Report_Aboriginal_Deaths_Ascertainment_Age.xlsx"),
+                                       skip = 2) %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::rename(median_aboriginal = x2023_incl_cod_sources_d) %>%
+  #
+  dplyr::filter(!is.na(median_aboriginal)) %>% 
+  #
+  dplyr::select(sex,
+                median_aboriginal)
+
+mortality_age_non_aboriginal <- readxl::read_excel(file.path(root_folder, subfolder_death, "ABS_Median_Age_Death_2013_2023.xlsx"),
+                                                   skip  = 6,
+                                                   sheet = "Table 1") %>%
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(year = males,
+                median_non_aboriginal = x3) %>% 
+  #
+  dplyr::mutate(sex = dplyr::case_when(
+    row_number() %in% 1:11  ~ "Males",
+    row_number() %in% 13:23 ~ "Females",
+    row_number() %in% 25:35 ~ "Persons",
+    TRUE ~ NA_character_)) %>% 
+  #
+  dplyr::filter(year == "2023") %>% 
+
+  dplyr::select(sex,
+                median_non_aboriginal)
+
+mortality_age <- mortality_age_aboriginal %>% 
+  dplyr::left_join(mortality_age_non_aboriginal, by = "sex")
+```
+
+::: {custom-style="Dotpt"}
+- Data for these indicators were sourced from the ABS Technical Note *The impact of using multiple sources for deriving the Indigenous status of deaths in 2023*. Due to changes introduced in the derivation of Aboriginal and/or Torres Strait Islander status for deaths registered from 2023 onwards, data for 2023 cannot be reliably compared to previous years.  
+
+- There were 412 deaths registered in 2023 for Aboriginal and/or Torres Strait Islander people in Victoria.
+
+- The median age at death for Aboriginal and/or Torres Strait Islander people in Victoria during 2023 was 64.2 years, compared to 82.7 years for non-Indigenous people.
+
+- Females had an older median age at death than males (66.3 years vs. 63.1 years).
+
+- The age-standardised death rate for Aboriginal and/or Torres Strait Islander people in Victoria during 2023 was 9.5 deaths per 1,000 people, compared to 5.2 deaths per 1,000 people for non-Indigenous people.
+
+- Males had a higher age-standardised death rate than females (10.3 per 1,000 people vs. 8.6 per 1,000 people).
+:::
+
+\newpage
+
+```{r}
+# Figure 10N-1
+f_caption_figure("Age-standardised death rate (per 1,000 population), Victoria, by Aboriginal and/or Torres Strait Islander status and sex, 2023")
+
+mortality_rate %>% 
+  f_graph_bar_comparison(x_variable = sex,
+                         y_variable = rate_2023,
+                         x_labels   = c("Males", "Females", "All persons"),
+                         y_max      = NA,
+                         y_breaks   = 1,
+                         y_expand   = 1,
+                         y_label    = "Age-standardised rate (per 1,000 population)")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_death)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+```{r}
+# Table 10N-1
+f_caption_table("Median age at death and age-standardised death rate (per 1,000 population), Victoria, by Aboriginal and/or Torres Strait Islander status and sex, 2023")
+
+mortality_rate %>% 
+  tidyr::pivot_wider(names_from  = "indigenous_status",
+                     names_vary  = "slowest",
+                     values_from = c("rate_2023")) %>% 
+  #
+  dplyr::mutate(ratio = round(rate_aboriginal / rate_non_aboriginal, digits = 1)) %>% 
+  #
+  dplyr::left_join(mortality_age, by = "sex") %>% 
+  #
+  dplyr::select(sex,
+                median_aboriginal,
+                rate_aboriginal,
+                median_non_aboriginal,
+                rate_non_aboriginal,
+                ratio) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Sex", "Yes\n(median age)", "Yes\n(rate)", "No\n(median age)", "No\n(rate)", "Rate ratio")) %>%
+  #
+  flextable::add_header_row(values    = c(" ", "Identified as Aboriginal and/or Torres Strait Islander", " "),
+                            colwidths = c(1, 4, 1)) %>%
+  #
+  flextable::valign(valign = "bottom",
+                    part   = "header") %>%
+  #
+  flextable::align(align = "center",
+                   part  = "header") %>% 
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "all") %>%
+  #
+  flextable::align(j = c(2:6),
+                   align = "right",
+                   part  = "all") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>%
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::bold(i = 3) %>%
+  #
+  flextable::hline(i = 2,
+                   border = fp_border_default(width = 2)) %>%
+  #
+  flextable::width(j = 2:6,
+                   width = 1) %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_death)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+\newpage
+
+# Cause of Death
+
+## Suicide
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 14: Significant and sustained reduction in suicide of Aboriginal and Torres Strait Islander people towards zero.
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Suicide, by age and sex
+# Data from Coroners Court of Victoria Suicide Report
+# ------------------------------------------------------------------------------
+# Read in Coroners Court data
+suicide_agesex <- readxl::read_excel(file.path(root_folder, subfolder_coroner, "vic_coroner_aboriginal.xlsx"),
+                                     sheet = "Annual counts") %>% 
+  janitor::clean_names()
+
+# ------------------------------------------------------------------------------
+# Suicide, by indigenous status
+# Data from Coroners Court of Victoria Suicide Report
+# ------------------------------------------------------------------------------
+# Read in Coroners Court data
+suicide_comparison <- readxl::read_excel(file.path(root_folder, subfolder_coroner, "vic_coroner_aboriginal.xlsx"),
+                                         sheet = "Comparison counts") %>% 
+  janitor::clean_names()
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were sourced from the Coroners Court of Victoria Suicides of Aboriginal and Torres Strait Islander People Report (2018-2023), which is compiled from information recorded in the Victorian Suicide Register. This report is updated annually and provides an overview of suicides during the preceding five-year period.
+
+- Between January 2018 and December 2023 there were 134 deaths due to suicide among Aboriginal and/or Torres Strait Islander people in Victoria.
+
+- There was a larger number of suicides each year for males compared to females, and the number of suicides has increased over time for both males and females.
+
+- 45% of suicides for males and 76% of suicides for females were among people aged less than 34 years.
+
+- Despite comprising 1.0% of the Victorian population, 3.1% of deaths due to suicide during 2018-2023 in Victoria were among Aboriginal and/or Torres Strait Islander people.
+:::
+
+```{r}
+# Figure 10N-2
+f_caption_figure("Number of deaths due to suicide for Aboriginal and/or Torres Strait Islander people, Victoria, by sex and year, 2018-2023")
+
+suicide_agesex %>% 
+  tidyr::pivot_longer(cols = x2018:total,
+                      names_to = "year") %>% 
+  #
+  dplyr::filter(age_group == "Total" & sex != "Total" & year != "total") %>% 
+  #
+  dplyr::mutate(year = factor(stringr::str_sub(year, 2))) %>%
+  #
+  f_graph_line_sex(x_variable = year,
+                   y_variable = value,
+                   y_max      = NA,
+                   y_breaks   = 5,
+                   y_expand   = 1,
+                   y_title    = "Number of deaths")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_suicide)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+```{r}
+# Figure 10N-3
+f_caption_figure("Number of deaths due to suicide for Aboriginal and/or Torres Strait Islander people, Victoria, by age and sex, 2018-2023")
+
+suicide_agesex %>% 
+  tidyr::pivot_longer(cols = x2018:total,
+                      names_to = "year") %>% 
+  #
+  dplyr::filter(age_group != "Total" & sex != "Total" & year == "total") %>% 
+  #
+  dplyr::mutate(age_group = factor(age_group,
+                                   levels = c("<18 yrs",
+                                              "18 to 24 yrs",
+                                              "25 to 34 yrs",
+                                              "35 to 44 yrs",
+                                              "45 to 54 yrs",
+                                              "55 to 64 yrs",
+                                              "65+ yrs"))) %>% 
+  ggplot() +
+  #
+  geom_col(aes(x = age_group, y = value),
+           col      = colour_gray,
+           fill     = colour_lightblue,
+           position = position_dodge()) +
+  #
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+  #
+  scale_y_continuous(breaks = scales::breaks_width(5),
+                     expand = expansion(add = c(0, 2.5)),
+                     labels = scales::comma_format(big.mark = ",")) +
+  #
+  labs(x = NULL, 
+       y = "Number of deaths") +
+  #
+  theme_classic() +
+  #
+  theme(plot.margin = margin(5, 5, 5, 5),
+        #
+        axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0))) +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_suicide)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+\newpage
+
+```{r}
+# Table 10N-2
+f_caption_table("Number of deaths due to suicide for Aboriginal and/or Torres Strait Islander people, Victoria, by age and sex, 2018-2023")
+
+suicide_agesex %>% 
+  dplyr::filter(sex == "Male") %>% 
+  #
+  tidyr::pivot_wider(names_from  = "sex",
+                     names_vary  = "slowest",
+                     values_from = x2018:total) %>%
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Age group", 
+                                          "2018", "2019", "2020", "2021", "2022", "2023", "Total")) %>%
+  #
+  flextable::add_header_row(values    = c("Male"),
+                            colwidths = c(8)) %>%
+  #
+  flextable::align(i = 1,
+                   align = "right",
+                   part  = "header") %>%
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "all") %>%
+  #
+  flextable::align(j = c(2:8),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::bold(i = 8) %>%
+  #
+  flextable::hline(i = 7,
+                   border = fp_border_default(width = 2)) %>%
+  #
+  flextable::width(j = 1,
+                   width = 1.5) %>%
+  #
+  flextable::width(j = 2:8,
+                   width = 0.75) %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+
+suicide_agesex %>% 
+  dplyr::filter(sex == "Female") %>% 
+  #
+  tidyr::pivot_wider(names_from  = "sex",
+                     names_vary  = "slowest",
+                     values_from = x2018:total) %>%
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Age group", 
+                                          "2018", "2019", "2020", "2021", "2022", "2023", "Total")) %>%
+  #
+  flextable::add_header_row(values    = c("Female"),
+                            colwidths = c(8)) %>%
+  #
+  flextable::align(i = 1,
+                   align = "right",
+                   part  = "header") %>%
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "all") %>%
+  #
+  flextable::align(j = c(2:8),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::bold(i = 8) %>%
+  #
+  flextable::hline(i = 7,
+                   border = fp_border_default(width = 2)) %>%
+  #
+  flextable::width(j = 1,
+                   width = 1.5) %>%
+  #
+  flextable::width(j = 2:8,
+                   width = 0.75) %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_suicide)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+\newpage
+
+## Leading Causes of Death
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Leading causes of death, Victoria
+# Data from ABS Technical Report (https://www.abs.gov.au/articles/technical-note-impact-using-multiple-sources-deriving-indigenous-status-deaths-2023-changes-victoria-and-coroner-referred-deaths)
+# ------------------------------------------------------------------------------
+# Read in ABS data
+mortality_cause <- readxl::read_excel(file.path(root_folder, subfolder_death, "ABS_Tech_Report_Aboriginal_Deaths_Ascertainment_Cause.xlsx"),
+                                       skip  = 3) %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::rename(rank     = males_7,
+                cause    = x8,
+                n_deaths = x9) %>%
+  #
+  dplyr::mutate(sex = dplyr::case_when(
+    row_number() %in% 1:12  ~ "Males",
+    row_number() %in% 14:25 ~ "Females",
+    row_number() %in% 27:38 ~ "Persons",
+    TRUE ~ NA_character_)) %>%
+  #
+  dplyr::filter(!is.na(sex)) %>% 
+  #
+  dplyr::select(sex,
+                rank,
+                cause,
+                n_deaths)
+
+# Data wrangling
+mortality_cause <- mortality_cause %>% 
+  dplyr::mutate(cause = dplyr::case_when(
+    stringr::str_detect(cause, "(C18-C21, C26.0)")     ~ "Colorectal cancer",
+    stringr::str_detect(cause, "(C22)")                ~ "Liver cancer",
+    stringr::str_detect(cause, "(C25)")                ~ "Pancreatic cancer",
+    stringr::str_detect(cause, "(C50)")                ~ "Breast cancer",
+    stringr::str_detect(cause, "(C33-C34)")            ~ "Lung cancer",
+    stringr::str_detect(cause, "(C33, C34)")           ~ "Lung cancer",
+    stringr::str_detect(cause, "(E10-E14)")            ~ "Diabetes",
+    stringr::str_detect(cause, "(F01, F03, G30)")      ~ "Dementia",
+    stringr::str_detect(cause, "(I20-I25)")            ~ "Ischaemic heart disease",
+    stringr::str_detect(cause, "(I50-I51)")            ~ "Heart failure",
+    stringr::str_detect(cause, "(I60-I69)")            ~ "Cerebrovascular disease",
+    stringr::str_detect(cause, "(J40-J47)")            ~ "Lower respiratory disease",
+    stringr::str_detect(cause, "(K70-K76)")            ~ "Cirrhosis",
+    stringr::str_detect(cause, "(N00-N39)")            ~ "Urinary system disease",
+    stringr::str_detect(cause, "(R00-R99)")            ~ "Ill-defined conditions",
+    stringr::str_detect(cause, "(U07.1-U07.2, U10.9)") ~ "COVID",
+    stringr::str_detect(cause, "(X40-X49)")            ~ "Accidental poisoning",
+    stringr::str_detect(cause, "(X60-X84, Y870)")      ~ "Suicide",
+    TRUE ~ NA_character_))
+```
+
+::: {custom-style="Dotpt"}
+- Data for these indicators were sourced from the ABS Technical Note *The impact of using multiple sources for deriving the Indigenous status of deaths in 2023*. Due to changes introduced in the derivation of Aboriginal and/or Torres Strait Islander status for deaths registered from 2023 onwards, data for 2023 cannot be reliably compared to previous years.
+
+- Cause of death data for 2023 are preliminary and are subject to change as additional data become available. The process of coding cause of death data can take up to 2.5 years due to the requirement to wait for coroner cases to be closed and for information from autopsies and toxicology testing to become available for inclusion when death data are coded by the ABS. The next revision of 2023 death data is due to occur in April 2026.
+
+- The top three leading causes of death for Aboriginal and/or Torres Strait Islander people in Victoria during 2023 were ischaemic heart disease (50 deaths), lower respiratory diseases (32 deaths), and lung cancer (27 deaths).
+
+- The top three leading causes of death for Aboriginal and/or Torres Strait Islander males in Victoria during 2023 were ischaemic heart disease (33 deaths), lung cancer (19 deaths), and suicide (18 deaths).
+
+- The top three leading causes of death for Aboriginal and/or Torres Strait Islander females in Victoria during 2023 were ischaemic heart disease (17 deaths), lower respiratory diseases (15 deaths), breast cancer (10 deaths), and diabetes (10 deaths).
+:::
+
+\newpage
+
+```{r}
+# Figure 10N-4
+f_caption_figure("Leading causes of death for Aboriginal and/or Torres Strait Islander people, Victoria, 2023")
+
+mortality_cause %>% 
+  dplyr::filter(sex == "Persons") %>% 
+  #
+  dplyr::arrange(rank, cause) %>% 
+  #
+  f_graph_bar_horizontal(x_variable = cause,
+                         y_variable = n_deaths,
+                         #
+                         y_max    = NA,
+                         y_breaks = 5,
+                         y_expand = 1,
+                         y_title  = "Number of deaths")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_death)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_death_cause)`
+
+- 'Accidental poisoning' includes ICD-10-AM codes X40-X49 (accidental poisoning by and exposure to noxious substances).
+
+- 'Breast cancer' includes ICD-10-AM code C50 (malignant neoplasm of breast).
+
+- Cerebrovascular disease includes ICD-10-AM codes I60 (subarachnoid haemorrhage), I61 (intracerebral haemorrhage), I62 (other nontraumatic intracranial haemorrhage), I63 (cerebral infarction), I64 (stroke, not specified as haemorrhage or infarction), I65 (occlusion and stenosis of precerebral arteries, not resulting in cerebral infarction), I66 (occlusion and stenosis of cerebral arteries, not resulting in cerebral infarction), I67 (other cerebrovascular diseases), I68 (cerebrovascular disorders in diseases classified elsewhere), and I69 (sequelae of cerebrovascular disease).
+
+- 'Cirrhosis' includes ICD-10-AM codes K70 (alcoholic liver disease), K71 (toxic liver disease), K72 (hepatic failure, not elsewhere classified), K73 (chronic hepatitis, not elsewhere classified), K74 (fibrosis and cirrhosis of liver), K75 (other inflammatory liver diseases), and K76 (other diseases of liver).
+
+- 'Dementia' includes ICD-10-AM codes F01 (vascular dementia), F03 (unspecified dementia), and G30 (Alzheimer disease).
+
+- 'Diabetes' includes ICD-10-AM codes E10 (Type 1 diabetes mellitus), E11 (Type 2 diabetes mellitus), E12 (malnutrition-related diabetes mellitus), E13 (other specified diabetes mellitus), and E14 (unspecified diabetes mellitus).
+
+- 'Ill-defined conditions' includes ICD-10-AM codes R00-R99 (symptoms, signs, and abnormal clinical and laboratory findings, not elsewhere classified).
+
+- 'Ischaemic heart disease' includes ICD-10-AM codes I20 (angina pectoris), I21 (acute myocardial infarction), I22 (subsequent myocardial infarction), I23 (certain current complications following acute myocardial infarction), I24 (other acute ischaemic heart diseases), and I25 (chronic ischaemic heart disease).
+
+- 'Liver cancer' includes ICD-10-AM code C22 (malignant neoplasm of liver and intrahepatic bile ducts).
+
+- 'Lower respiratory disease' includes ICD-10-AM codes J40 (bronchitis, not specified as acute or chronic), J41 (simple and mucopurulent chronic bronchitis), J42 (unspecified chronic bronchitis), J43 (emphysema), J44 (other chronic obstructive pulmonary disease), J45 (asthma), J46 (status asthmaticus), and J47 (bronchiectasis).
+  
+- 'Lung cancer' includes ICD-10-AM codes C33 (malignant neoplasm of trachea) and C34 (malignant neoplasm of bronchus and lung).
+  
+- 'Suicide' includes ICD-10-AM codes X60-X84 (intentional self-harm) and Y87.0 (sequelae of intentional self-harm).
+:::
+
+```{r}
+# Figure 10N-5
+f_caption_figure("Leading causes of death for Aboriginal and/or Torres Strait Islander males, Victoria, 2023")
+
+mortality_cause %>% 
+  dplyr::filter(sex == "Males") %>% 
+  #
+  dplyr::arrange(rank, cause) %>% 
+  #
+  f_graph_bar_horizontal(x_variable = cause,
+                         y_variable = n_deaths,
+                         #
+                         y_max    = 35,
+                         y_breaks = 5,
+                         y_expand = 1,
+                         y_title  = "Number of deaths")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_death)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_death_cause)`
+
+- 'Accidental poisoning' includes ICD-10-AM codes X40-X49 (accidental poisoning by and exposure to noxious substances).
+
+- Cerebrovascular disease includes ICD-10-AM codes I60 (subarachnoid haemorrhage), I61 (intracerebral haemorrhage), I62 (other nontraumatic intracranial haemorrhage), I63 (cerebral infarction), I64 (stroke, not specified as haemorrhage or infarction), I65 (occlusion and stenosis of precerebral arteries, not resulting in cerebral infarction), I66 (occlusion and stenosis of cerebral arteries, not resulting in cerebral infarction), I67 (other cerebrovascular diseases), I68 (cerebrovascular disorders in diseases classified elsewhere), and I69 (sequelae of cerebrovascular disease).
+
+- 'Cirrhosis' includes ICD-10-AM codes K70 (alcoholic liver disease), K71 (toxic liver disease), K72 (hepatic failure, not elsewhere classified), K73 (chronic hepatitis, not elsewhere classified), K74 (fibrosis and cirrhosis of liver), K75 (other inflammatory liver diseases), and K76 (other diseases of liver).
+
+- 'Colorectal cancer' includes ICD-10-AM codes C18 (malignant neoplasm of colon), C19 (malignant neoplasm of rectosigmoid junction), C20 (malignant neoplasm of rectum), C21 (malignant neoplasm of anus and anal canal), and C26.0 (malignant neoplasm of intestinal tract, part unspecified).
+
+- 'Diabetes' includes ICD-10-AM codes E10 (Type 1 diabetes mellitus), E11 (Type 2 diabetes mellitus), E12 (malnutrition-related diabetes mellitus), E13 (other specified diabetes mellitus), and E14 (unspecified diabetes mellitus).
+
+- 'Heart failure' includes ICD-10-AM codes I50 (heart failure) and I51 (complications and ill-defined descriptions of heart disease).
+
+- 'Ill-defined conditions' includes ICD-10-AM codes R00-R99 (symptoms, signs, and abnormal clinical and laboratory findings, not elsewhere classified).
+
+- 'Ischaemic heart disease' includes ICD-10-AM codes I20 (angina pectoris), I21 (acute myocardial infarction), I22 (subsequent myocardial infarction), I23 (certain current complications following acute myocardial infarction), I24 (other acute ischaemic heart diseases), and I25 (chronic ischaemic heart disease).
+
+- 'Lower respiratory disease' includes ICD-10-AM codes J40 (bronchitis, not specified as acute or chronic), J41 (simple and mucopurulent chronic bronchitis), J42 (unspecified chronic bronchitis), J43 (emphysema), J44 (other chronic obstructive pulmonary disease), J45 (asthma), J46 (status asthmaticus), and J47 (bronchiectasis).
+  
+- 'Lung cancer' includes ICD-10-AM codes C33 (malignant neoplasm of trachea) and C34 (malignant neoplasm of bronchus and lung).
+  
+- 'Pancreatic cancer' includes ICD-10-AM code C25 (malignant neoplasm of pancreas).
+
+- 'Suicide' includes ICD-10-AM codes X60-X84 (intentional self-harm) and Y87.0 (sequelae of intentional self-harm).
+:::
+
+```{r}
+# Figure 10N-6
+f_caption_figure("Leading causes of death for Aboriginal and/or Torres Strait Islander females, Victoria, 2023")
+
+mortality_cause %>% 
+  dplyr::filter(sex == "Females") %>% 
+  #
+  dplyr::arrange(rank, cause) %>% 
+  #
+  f_graph_bar_horizontal(x_variable = cause,
+                         y_variable = n_deaths,
+                         #
+                         y_max    = 35,
+                         y_breaks = 5,
+                         y_expand = 1,
+                         y_title  = "Number of deaths")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_death)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_death_cause)`
+
+- 'Accidental poisoning' includes ICD-10-AM codes X40-X49 (accidental poisoning by and exposure to noxious substances).
+
+- 'Breast cancer' includes ICD-10-AM code C50 (malignant neoplasm of breast).
+  
+- 'COVID' includes ICD-10-AM codes U07.1 (COVID-19, virus identified), U07.2 (COVID-19, virus not identified), and U10.9 (multisystem inflammatory syndrome associated with COVID-19, unspecified).
+
+- 'Cirrhosis' includes ICD-10-AM codes K70 (alcoholic liver disease), K71 (toxic liver disease), K72 (hepatic failure, not elsewhere classified), K73 (chronic hepatitis, not elsewhere classified), K74 (fibrosis and cirrhosis of liver), K75 (other inflammatory liver diseases), and K76 (other diseases of liver).
+
+- 'Dementia' includes ICD-10-AM codes F01 (vascular dementia), F03 (unspecified dementia), and G30 (Alzheimer disease).
+
+- 'Diabetes' includes ICD-10-AM codes E10 (Type 1 diabetes mellitus), E11 (Type 2 diabetes mellitus), E12 (malnutrition-related diabetes mellitus), E13 (other specified diabetes mellitus), and E14 (unspecified diabetes mellitus).
+
+- 'Ischaemic heart disease' includes ICD-10-AM codes I20 (angina pectoris), I21 (acute myocardial infarction), I22 (subsequent myocardial infarction), I23 (certain current complications following acute myocardial infarction), I24 (other acute ischaemic heart diseases), and I25 (chronic ischaemic heart disease).
+
+- 'Liver cancer' includes ICD-10-AM code C22 (malignant neoplasm of liver and intrahepatic bile ducts).
+
+- 'Lower respiratory disease' includes ICD-10-AM codes J40 (bronchitis, not specified as acute or chronic), J41 (simple and mucopurulent chronic bronchitis), J42 (unspecified chronic bronchitis), J43 (emphysema), J44 (other chronic obstructive pulmonary disease), J45 (asthma), J46 (status asthmaticus), and J47 (bronchiectasis).
+  
+- 'Lung cancer' includes ICD-10-AM codes C33 (malignant neoplasm of trachea) and C34 (malignant neoplasm of bronchus and lung).
+
+- 'Suicide' includes ICD-10-AM codes X60-X84 (intentional self-harm) and Y87.0 (sequelae of intentional self-harm).
+
+- 'Urinary system disease' includes ICD-10-AM codes N00-N08 (glomerular diseases), N10-N16 (renal tubulo-interstitial diseases), N17-N19 (renal failure), N20-N23 (urolithiasis), N25-N29 (other disorders of kidney and ureter), and N30-N39 (other diseases of urinary system).
+:::
+
+\newpage
+
+```{r}
+# Table 10N-3
+f_caption_table("Leading causes of death for Aboriginal and/or Torres Strait Islander people, Victoria, by sex, 2023")
+
+mortality_cause %>%
+  f_table_cod(sex_name = "Males")
+  
+mortality_cause %>% 
+  f_table_cod(sex_name = "Females")
+
+mortality_cause %>% 
+  f_table_cod(sex_name = "Persons")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_death)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_death_cause)`
+
+- 'Accidental poisoning' includes ICD-10-AM codes X40-X49 (accidental poisoning by and exposure to noxious substances).
+
+- 'Breast cancer' includes ICD-10-AM code C50 (malignant neoplasm of breast).
+  
+- 'COVID' includes ICD-10-AM codes U07.1 (COVID-19, virus identified), U07.2 (COVID-19, virus not identified), and U10.9 (multisystem inflammatory syndrome associated with COVID-19, unspecified).
+  
+- Cerebrovascular disease includes ICD-10-AM codes I60 (subarachnoid haemorrhage), I61 (intracerebral haemorrhage), I62 (other nontraumatic intracranial haemorrhage), I63 (cerebral infarction), I64 (stroke, not specified as haemorrhage or infarction), I65 (occlusion and stenosis of precerebral arteries, not resulting in cerebral infarction), I66 (occlusion and stenosis of cerebral arteries, not resulting in cerebral infarction), I67 (other cerebrovascular diseases), I68 (cerebrovascular disorders in diseases classified elsewhere), and I69 (sequelae of cerebrovascular disease).
+
+- 'Cirrhosis' includes ICD-10-AM codes K70 (alcoholic liver disease), K71 (toxic liver disease), K72 (hepatic failure, not elsewhere classified), K73 (chronic hepatitis, not elsewhere classified), K74 (fibrosis and cirrhosis of liver), K75 (other inflammatory liver diseases), and K76 (other diseases of liver).
+
+- 'Colorectal cancer' includes ICD-10-AM codes C18 (malignant neoplasm of colon), C19 (malignant neoplasm of rectosigmoid junction), C20 (malignant neoplasm of rectum), C21 (malignant neoplasm of anus and anal canal), and C26.0 (malignant neoplasm of intestinal tract, part unspecified).
+
+- 'Dementia' includes ICD-10-AM codes F01 (vascular dementia), F03 (unspecified dementia), and G30 (Alzheimer disease).
+
+- 'Diabetes' includes ICD-10-AM codes E10 (Type 1 diabetes mellitus), E11 (Type 2 diabetes mellitus), E12 (malnutrition-related diabetes mellitus), E13 (other specified diabetes mellitus), and E14 (unspecified diabetes mellitus).
+
+- 'Heart failure' includes ICD-10-AM codes I50 (heart failure) and I51 (complications and ill-defined descriptions of heart disease).
+
+- 'Ill-defined conditions' includes ICD-10-AM codes R00-R99 (symptoms, signs, and abnormal clinical and laboratory findings, not elsewhere classified).
+
+- 'Ischaemic heart disease' includes ICD-10-AM codes I20 (angina pectoris), I21 (acute myocardial infarction), I22 (subsequent myocardial infarction), I23 (certain current complications following acute myocardial infarction), I24 (other acute ischaemic heart diseases), and I25 (chronic ischaemic heart disease).
+
+- 'Liver cancer' includes ICD-10-AM code C22 (malignant neoplasm of liver and intrahepatic bile ducts).
+
+- 'Lower respiratory disease' includes ICD-10-AM codes J40 (bronchitis, not specified as acute or chronic), J41 (simple and mucopurulent chronic bronchitis), J42 (unspecified chronic bronchitis), J43 (emphysema), J44 (other chronic obstructive pulmonary disease), J45 (asthma), J46 (status asthmaticus), and J47 (bronchiectasis).
+  
+- 'Lung cancer' includes ICD-10-AM codes C33 (malignant neoplasm of trachea) and C34 (malignant neoplasm of bronchus and lung).
+  
+- 'Pancreatic cancer' includes ICD-10-AM code C25 (malignant neoplasm of pancreas).
+
+- 'Suicide' includes ICD-10-AM codes X60-X84 (intentional self-harm) and Y87.0 (sequelae of intentional self-harm).
+
+- 'Urinary system disease' includes ICD-10-AM codes N00-N08 (glomerular diseases), N10-N16 (renal tubulo-interstitial diseases), N17-N19 (renal failure), N20-N23 (urolithiasis), N25-N29 (other disorders of kidney and ureter), and N30-N39 (other diseases of urinary system).
+:::
+
+\newpage
+
+# Life Expectancy
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 1: Close the Gap in life expectancy within a generation, by 2031.
+:::
+
+<br>
+
+```{r, include = FALSE}
+# ------------------------------------------------------------------------------
+# Life expectancy at birth, Australia
+# Data from ABS Life Tables
+# ------------------------------------------------------------------------------
+# Read in ABS data
+mortality_life <- readxl::read_excel(file.path(root_folder, subfolder_ctg, "CTG01_Healthy_Lives_Data_Tables.xlsx"),
+                                     skip  = 1,
+                                     sheet = "Table CtG1A.1") %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::rename(indigenous_status = x1,
+                year = x3,
+                sex  = x4) %>%
+  #
+  tidyr::fill(indigenous_status, year) %>% 
+  #
+  dplyr::filter(row_number() %in% 1:44) %>% 
+  dplyr::filter(!is.na(sex))
+
+# Data wrangling
+mortality_life <- mortality_life %>%
+  dplyr::select(indigenous_status,
+                year,
+                sex,
+                rate = aust_b) %>% 
+  #
+  dplyr::mutate(rate = as.numeric(rate))
+
+mortality_life <- mortality_life %>% 
+  tidyr::pivot_wider(names_from  = "indigenous_status",
+                     values_from = "rate") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::mutate(difference = non_indigenous_people - aboriginal_and_torres_strait_islander_people)
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were sourced from the ABS Aboriginal and Torres Strait Islander Life Expectancy Report and are only publicly available at an aggregate level for Australia. Data on life expectancy are not reported separately for Victoria, but Victorian data are included in the Australian totals.
+
+- Life expectancy at birth has increased over time for Aboriginal and/or Torres Strait Islander people in Australia, for both males (from 68 years in 2005-07 to 72 years in 2020-22) and females (from 73 years in 2005-07 to 76 years in 2020-22).
+
+- Life expectancy at birth for babies born in 2020-22 is higher for Aboriginal and/or Torres Strait Islander females (76 years) than males (72 years).
+
+- The gap in life expectancy between Aboriginal and/or Torres Strait Islander and non-Indigenous people has improved, but remains at 8.7 years for males and 8.2 years for females.
+:::
+
+```{r}
+# Figure 10N-7
+f_caption_figure("Life expectancy at birth, Australia, by Aboriginal and/or Torres Strait Islander status, sex, and year of birth, 2005-2007 to 2020-2022")
+
+mortality_life %>% 
+  tidyr::pivot_longer(cols      = 3:4,
+                      names_to  = "indigenous_status",
+                      values_to = "rate") %>% 
+  #
+  f_graph_line_comparison(y_variable = rate,
+                          y_max      = NA,
+                          y_breaks   = 10,
+                          y_expand   = 7,
+                          y_title    = "Life expectancy at birth (years)") +
+  #
+  facet_wrap(~sex,
+             axes = "all")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_life)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+```{r}
+# Figure 10N-8
+f_caption_figure("Difference in life expectancy at birth for Aboriginal and/or Torres Strait Islander children and non-Aboriginal and/or Torres Strait Islander children, Australia, by sex and year of birth, 2005-2007 to 2020-2022")
+
+mortality_life %>% 
+  f_graph_line_sex(x_variable = year,
+                   y_variable = difference,
+                   y_max      = NA,
+                   y_breaks   = 1,
+                   y_expand   = 0.75,
+                   y_title    = "Difference in life expectancy at birth (years)")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_life)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+```{r}
+# Table 10N-4
+f_caption_table("Life expectancy at birth (years), Australia, by Aboriginal and/or Torres Strait Islander status, sex, and year of birth, 2005-2007 to 2020-2022")
+
+mortality_life %>% 
+  tidyr::pivot_wider(names_from  = "sex",
+                     names_vary = "slowest",
+                     values_from = c("aboriginal_and_torres_strait_islander_people",
+                                     "non_indigenous_people",
+                                     "difference")) %>%
+  janitor::clean_names() %>% 
+  #
+  dplyr::arrange(year) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Year of birth",
+                                          "Yes", "No", "Difference in life expectancy",
+                                          "Yes", "No", "Difference in life expectancy")) %>% 
+  #
+  flextable::add_header_row(values    = c(" ", "Identified as Aboriginal and/or Torres Strait Islander", "Identified as Aboriginal and/or Torres Strait Islander"),
+                            colwidths = c(1, 3, 3)) %>%
+  #
+  flextable::add_header_row(values    = c(" ", "Male", "Female"),
+                            colwidths = c(1, 3, 3)) %>%
+  #
+  flextable::valign(valign = "bottom",
+                    part   = "header") %>%
+  #
+  flextable::align(i = 1,
+                   align = "center",
+                   part  = "header") %>%
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:7),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::width(j = 1:7,
+                   width = 1.0) %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_mortality_life)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+

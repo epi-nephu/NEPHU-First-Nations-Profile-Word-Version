@@ -1,0 +1,386 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Other Determinants of Health: Child Protection"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "08B Other Child Protection ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+#
+source(here::here("Code", "00_Setup.R"))
+
+source(here::here("Code", "Functions", "Graphs", "f_graph_line_comparison.R"))
+source(here::here("Code", "Functions", "Graphs", "f_graph_ctg_target.R"))
+
+source(here::here("Code", "Functions", "Tables", "f_table_rate_year.R"))
+```
+
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 8B-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 8B-"))
+  
+  return(caption)
+  
+}
+```
+
+### What external factors may influence how Aboriginal and/or Torres Strait Islander people and families in the NEPHU catchment are supported to prioritise health and wellbeing, particularly in connection to caring for children and keeping families strong?
+
+# Child Protection
+
+::: {custom-style="Dotpt"}
+This indicator aligns with Closing the Gap Target 12: By 2031, reduce the rate of over-representation of Aboriginal and Torres Strait Islander children (0–17 years old) in out-of-home care by 45% (compared to the baseline year of 2018-19).
+:::
+
+<br>
+
+```{r}
+# ------------------------------------------------------------------------------
+# Child protection: out-of-home care
+# Data from AIHW Child Protection National Minimum Dataset
+# ------------------------------------------------------------------------------
+# Read in AIHW data
+protection_home <- readxl::read_excel(file.path(root_folder, subfolder_protection, "Child_Protection_National_Minimum_Dataset.xlsx"),
+                                      skip  = 2,
+                                      sheet = "T3") %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::mutate(
+    indigenous_status = dplyr::case_when(
+      row_number() %in% 58:62 ~ "aboriginal",
+      row_number() %in% 64:68 ~ "non_aboriginal",
+      TRUE ~ NA_character_)) %>% 
+  #
+  dplyr::filter(!is.na(indigenous_status))
+
+# Data wrangling
+protection_home <- protection_home %>%
+  dplyr::select(year,
+                indigenous_status,
+                rate = vic) %>%
+  #
+  dplyr::mutate(
+    ctg_target = dplyr::case_when(
+      indigenous_status == "non_aboriginal" ~ NA_real_,
+      TRUE ~ protection_home$vic[1] * 0.55),
+    #
+    ctg_change = dplyr::case_when(
+      indigenous_status == "non_aboriginal" ~ NA_character_,
+      rate >= protection_home$vic[1] * 1.1 ~ "a worsening",
+      rate <  protection_home$vic[1] * 0.9 ~ "an improvement",
+      TRUE ~ "no change"))
+
+# ------------------------------------------------------------------------------
+# Child protection: relationship with caregiver
+# Data from AIHW Child Protection National Minimum Dataset
+# ------------------------------------------------------------------------------
+# Read in AIHW data
+protection_relationship <- readxl::read_excel(file.path(root_folder, subfolder_ctg, "CTG12_Child_Protection_Data_Tables.xlsx"),
+                                              skip  = 1,
+                                              sheet = "Table SE12e.1") %>%
+  janitor::clean_names() %>%
+  #
+  dplyr::rename(type = x2,
+                year = x3,
+                relationship = x5) %>%
+  #
+  tidyr::fill(type, year) %>% 
+  #
+  dplyr::filter(!is.na(vic))
+
+# Data wrangling
+protection_relationship <- protection_relationship %>%
+  dplyr::select(type,
+                year,
+                relationship,
+                value = vic) %>%
+  #
+  dplyr::mutate(value = as.numeric(value),
+                #
+                type = dplyr::case_when(
+                  type == "Proportion of children" ~ "proportion",
+                  type == "Number of children"     ~ "number",
+                  TRUE ~ NA_character_),
+                #
+                relationship = dplyr::case_when(
+                  relationship == "Aboriginal and Torres Strait Islander relatives/kin" ~ "First Nations relatives/kin",
+                  relationship == "Other Aboriginal and Torres Strait Islander carers"  ~ "Other First Nations carers",
+                  relationship == "Non-Indigenous relatives/kin"                        ~ "Non-Indigenous relatives/kin",
+                  relationship == "Other non-Indigenous carers"                         ~ "Other care arrangements",
+                  relationship == "Residential care or family group home"               ~ "Other care arrangements",
+                  relationship == "Independent living/living arrangements unknown"      ~ "Other care arrangements",
+                  TRUE ~ NA_character_)) %>% 
+  #
+  dplyr::filter(!is.na(relationship)) %>% 
+  #
+  dplyr::group_by(type, year, relationship) %>% 
+  dplyr::summarise(value = sum(value)) %>% 
+  dplyr::ungroup()
+
+protection_relationship <- protection_relationship %>% 
+  tidyr::pivot_wider(names_from  = "type",
+                     values_from = "value") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::mutate(relationship = factor(relationship,
+                                      levels = c("First Nations relatives/kin",
+                                                 "Other First Nations carers",
+                                                 "Non-Indigenous relatives/kin",
+                                                 "Other care arrangements")))
+```
+
+::: {custom-style="Dotpt"}
+- Data for this indicator were obtained from the AIHW Child Protection National Minimum Dataset.
+
+- The out-of-home care rate for Aboriginal and/or Torres Strait Islander children in Victoria on June 30th 2023 was 103 per 1,000 population. This compares to 4.6 per 1,000 for non-Indigenous children.
+
+- This rate shows a worsening compared to the 2019 baseline rate.
+
+- On June 30th 2024, 82% (n = 2,365) of Aboriginal and/or Torres Strait Islander children in Victoria who were in out-of-home care had been placed with Aboriginal and/or Torres Strait Islander relatives or kin, non-Indigenous relatives or kin, or other Aboriginal and/or Torres Strait Islander carers.
+:::
+
+\newpage
+
+```{r}
+# Figure 8B-1
+f_caption_figure("Out-of-home care rate (per 1,000 population) on June 30th for children aged 0-17 years, Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+protection_home %>% 
+  f_graph_line_comparison(y_variable = rate,
+                          y_max      = NA,
+                          y_breaks   = 10,
+                          y_expand   = 10,
+                          y_title    = "Out-of-home care rate (per 1,000 population)") %>% 
+  #
+  f_graph_ctg_target(ctg_target = 49)
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_child_protection)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+`r knitr::asis_output(note_caveat_ctg_target)`
+
+- The out-of-home care rate is calculated as the total number of children in out-of-home care per 1,000 population on June 30th of each year as estimated by the [ABS Estimated Residential Population (ERP)](https://www.abs.gov.au/statistics/people/population/population-projections-australia/2022-base-2071) for the year. ERP calculations take into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census. 
+:::
+
+```{r}
+# Table 8B-1
+f_caption_table("Out-of-home care rate (per 1,000 population) on June 30th for children aged 0-17 years, Victoria, by Aboriginal and/or Torres Strait Islander status and year")
+
+protection_home %>% 
+  dplyr::select(year,
+                indigenous_status,
+                rate) %>% 
+  #
+  dplyr::mutate(rate = round(rate, digits = 1)) %>% 
+  #
+  tidyr::pivot_wider(names_from  = indigenous_status,
+                     values_from = rate) %>% 
+  #
+  f_table_rate_year() %>% 
+  #
+  flextable::set_header_labels(values = c("Year", "Yes\n(rate per 1,000)", "No\n(rate per 1,000)"))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_child_protection)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- The out-of-home care rate is calculated as the total number of children in out-of-home care per 1,000 population on June 30th of each year as estimated by the [ABS Estimated Residential Population (ERP)](https://www.abs.gov.au/statistics/people/population/population-projections-australia/2022-base-2071) for the year. ERP calculations take into account the known under-reporting of Aboriginal and/or Torres Strait Islander status in the Census. 
+:::
+
+\newpage
+
+```{r}
+# Figure 8B-2
+f_caption_figure("Relationship to carer for Aboriginal and/or Torres Strait Islander children in out-of-home care, Victoria, 2019-2024")
+
+ggplot(protection_relationship) +
+  geom_col(aes(x = year, y = number, fill = forcats::fct_rev(relationship)),
+           col = colour_gray) +
+  #
+  scale_y_continuous(limits = c(0, NA),
+                     breaks = scales::breaks_width(500),
+                     expand = expansion(add = c(0, 250))) +
+  #
+  scale_fill_manual(values = c(colour_yellow, colour_orange, colour_green, colour_lightblue),
+                    labels = c("Other care\narrangements", 
+                               "Non-Indigenous\nrelatives/kin", 
+                               "Other First\nNations carers", 
+                               "First Nations\nrelatives/kin"),
+                    name   = NULL) +
+  #
+  labs(x = NULL,
+       y = "Number of children") +
+  #
+  theme_classic() +
+  #
+  theme(plot.margin = margin(5, 5, 5, 5),
+        #
+        legend.title       = element_text(size = 9),
+        legend.location    = "plot",
+        legend.position    = "bottom",
+        legend.box.spacing = unit(5, "pt"),
+        legend.margin      = margin(c(0, 0, 0, 0)),
+        #
+        axis.title   = element_text(size = 9),
+        axis.title.y = element_text(margin = margin(0, 10, 0, 0))) +
+  #
+  guides(fill = guide_legend(reverse = TRUE))
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_child_protection)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Other care arrangements' includes children in out-of-home care who were living with non-Indigenous carers who were not relatives/kin, living in residential care or family group homes, living independently, and where the living arrangements were not known.
+:::
+
+```{r}
+# Table 8B-2
+f_caption_table("Relationship to carer for Aboriginal and/or Torres Strait Islander children in out-of-home care, Victoria, 2019-2024")
+
+protection_relationship %>%
+  tidyr::pivot_wider(names_from  = "relationship",
+                     values_from = c("number", "proportion"),
+                     names_vary  = "slowest") %>% 
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::select(year,
+                ends_with("first_nations_relatives_kin"),
+                ends_with("other_first_nations_carers"),
+                ends_with("non_indigenous_relatives_kin"),
+                ends_with("other_care_arrangements")) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Year", 
+                                          "n", "%", 
+                                          "n", "%",
+                                          "n", "%", 
+                                          "n", "%")) %>%
+  #
+  flextable::add_header_row(values    = c(" ", 
+                                          "First Nations\nrelatives/kin",
+                                          "Other First\nNations carers",
+                                          "Non-Indigenous\nrelatives/kin",
+                                          "Other care\narrangements"),
+                            colwidths = c(1, 2, 2, 2, 2)) %>%
+  #
+  flextable::align(i = 1,
+                   align = "center",
+                   part  = "header") %>%
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:9),
+                   align = "right",
+                   part  = "all") %>%
+  #
+  flextable::align(i = 1,
+                   align = "center",
+                   part  = "header") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>% 
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_child_protection)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+
+- 'Other care arrangements' includes children in out-of-home care who were living with non-Indigenous carers who were not relatives/kin, living in residential care or family group homes, living independently, and where the living arrangements were not known.
+:::
+

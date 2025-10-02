@@ -1,0 +1,103 @@
+---
+title: "NEPHU First Nations Population Profile"
+subtitle: "Demographics: Gender Diversity"
+output:
+  officedown::rdocx_document: 
+    page_size:
+      width: 8.27
+      length: 11.69
+    page_margins:
+      bottom: 0.5
+      top: 0.5
+      right: 0.8
+      left: 0.8
+      gutter: 0
+    reference_docx: Template.docx
+    
+knit: (function(input, ...) {
+  rmarkdown::render(input, output_file = paste0("NEPHU First Nations Profile - ", "05B Demographics Gender Diversity ", format(Sys.Date(), "%Y-%m-%d")), output_dir = "../Output/Dev") })
+---
+
+```{r setup, include = FALSE}
+#
+knitr::opts_chunk$set(echo    = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      #
+                      fig.align  = "center",
+                      fig.width  = 7,
+                      fig.height = 3.5,
+                      #
+                      ft.align = "center",
+                      #
+                      dpi = 300,
+                      #
+                      fig.topcaption = TRUE,
+                      #
+                      cache = FALSE)
+
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(here,
+               tidyverse,
+               rlang,
+               janitor,
+               readxl,
+               sf,
+               flextable,
+               colorRamps,
+               officer,
+               officedown,
+               extrafont,
+               ggnewscale,
+               patchwork)
+
+# Uncomment and run these lines if you get any weird "missing font" errors
+#extrafont::font_import()
+#extrafont::loadfonts(device = "win")
+```
+
+
+```{r, include = FALSE}
+# 
+source(here::here("Code", "00_Setup.R"))
+```
+
+
+```{r, include = FALSE}
+# Numbering and styling for figures and tables
+f_caption_figure <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Figure", 
+                                                 pre_label = "Figure 5B-"))
+  
+  return(caption)
+  
+}
+
+f_caption_table <- function(title_text) {
+  
+  caption <- block_caption(title_text, 
+                           style   = "caption", 
+                           autonum = run_autonum(seq_id    = "Table", 
+                                                 pre_label = "Table 5B-"))
+  
+  return(caption)
+  
+}
+```
+
+### What is the size and distribution of the Aboriginal and/or Torres Strait Islander gender diverse community living within the NEPHU catchment?
+
+Data are unable to be reported at this time as Aboriginal and/or Torres Strait Islander status is not included in the publicly available Victorian Population Health Survey data.
+
+#### Data notes:
+
+::: {custom-style="Footnotes"}
+- Data are sourced from the [Victorian Population Health Survey 2023](https://www.health.vic.gov.au/population-health-systems/victorian-population-health-survey) and report the proportion of people who identified as part of the lesbian, gay, bisexual, transgender, intersex, and queer (LGBTIQ+) community.
+
+- This indicator is unable to be reported on at this time as Aboriginal and/or Torres Strait Islander status is not included in the publicly available Victorian Population Health Survey data.
+:::
+
