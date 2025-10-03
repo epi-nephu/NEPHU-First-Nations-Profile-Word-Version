@@ -197,6 +197,15 @@ note_data_census <- glue::glue("
                                      
   - Aboriginal and/or Torres Strait Islander peoples were defined as those who identified themselves as Aboriginal and/or Torres Strait Islander in the Census.")
 
+note_data_ctg_suicide <- glue::glue("
+- Data were obtained from the [Closing the Gap Information Repository](https://www.pc.gov.au/closing-the-gap-data), compiled from the [ABS Causes of Death Data](https://www.abs.gov.au/statistics/health/causes-death).
+
+  - The Closing the Gap Information Repository brings together data from a wide range of data sources to provide up to date for on each Closing the Gap target, indicator, and contextual factors.
+  
+  - The ABS processes information about all deaths that are registered in Australia and apply coding rules to determine the underlying and contributing causes of death for each death.
+  
+  - 'Australia' includes NSW, Victoria, Queensland, Western Australia, South Australia, and the Northern Territory.")
+
 note_data_crime <- glue::glue("
 - Data were obtained from the [Victorian Crime Statistics Agency](https://www.crimestatistics.vic.gov.au/crime-statistics/latest-aboriginal-crime-data/family-incidents-by-aboriginal-and-torres-strait).
 

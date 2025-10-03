@@ -309,6 +309,46 @@ This indicator aligns with Closing the Gap Target 14: Significant and sustained 
 
 ```{r, include = FALSE}
 # ------------------------------------------------------------------------------
+# Suicide rate, by indigenous status
+# Data from ABS Cause of Death data
+# ------------------------------------------------------------------------------
+# Read in ABS data
+suicide_rate <- readxl::read_excel(file.path(root_folder, subfolder_ctg, "CTG14_Wellbeing_Data_Tables.xlsx"),
+                                     sheet = "Table CtG14A.1") %>% 
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(type = x3,
+                indigenous_status = x4,
+                year = x5,
+                value = x14) %>%
+    #
+    tidyr::fill(type, indigenous_status, year, value) %>%
+
+    dplyr::filter(row_number() %in% c(6:11, 13:18, 21:26, 28:33)) %>%
+    #
+    dplyr::select(type,
+                  year,
+                  indigenous_status,
+                  value)
+
+# Data wrangling
+suicide_rate <- suicide_rate %>% 
+  tidyr::pivot_wider(names_from  = "type",
+                     values_from = "value") %>%
+  #
+  janitor::clean_names() %>% 
+  #
+  dplyr::rename(rate = rate_per_100_000_people) %>%
+  #
+  dplyr::mutate(number = as.numeric(number),
+                rate   = as.numeric(rate),
+                #
+                indigenous_status = dplyr::case_when(
+                  indigenous_status == "Aboriginal and Torres Strait Islander people" ~ "aboriginal",
+                  indigenous_status == "Non-Indigenous people"                        ~ "non_aboriginal",
+                  TRUE ~ NA_character_))
+
+# ------------------------------------------------------------------------------
 # Suicide, by age and sex
 # Data from Coroners Court of Victoria Suicide Report
 # ------------------------------------------------------------------------------
@@ -330,17 +370,97 @@ suicide_comparison <- readxl::read_excel(file.path(root_folder, subfolder_corone
 ::: {custom-style="Dotpt"}
 - Data for this indicator were sourced from the Coroners Court of Victoria Suicides of Aboriginal and Torres Strait Islander People Report (2018-2023), which is compiled from information recorded in the Victorian Suicide Register. This report is updated annually and provides an overview of suicides during the preceding five-year period.
 
+- The age-standardised suicide rate for Aboriginal and/or Torres Strait Islander people in Australia has increased over time, from 24 per 100,000 people in 2018 to 31 per 100,000 people in 2023. The suicide rate is consistently higher than for non-Indigenous people.
+
 - Between January 2018 and December 2023 there were 134 deaths due to suicide among Aboriginal and/or Torres Strait Islander people in Victoria.
 
-- There was a larger number of suicides each year for males compared to females, and the number of suicides has increased over time for both males and females.
+- There was a larger number of suicides each year for males compared to females, and the number of suicides has increased over time for males.
 
 - 45% of suicides for males and 76% of suicides for females were among people aged less than 34 years.
 
 - Despite comprising 1.0% of the Victorian population, 3.1% of deaths due to suicide during 2018-2023 in Victoria were among Aboriginal and/or Torres Strait Islander people.
 :::
 
+\newpage
+
 ```{r}
 # Figure 10N-2
+f_caption_figure("Age-standardised suicide rate (per 100,000 population), Australia, by Aboriginal and/or Torres Strait Islander status and year")
+
+suicide_rate %>% 
+  f_graph_line_comparison(y_variable = rate,
+                          y_max      = NA,
+                          y_breaks   = 5,
+                          y_expand   = 5,
+                          y_title    = "Suicide rate (per 100,000 population)")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_ctg_suicide)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+```{r}
+# Table 10N-2
+f_caption_table("Number and age-standardised suicide rate (per 100,000 population), Australia, by Aboriginal and/or Torres Strait Islander status and year")
+
+suicide_rate %>% 
+  dplyr::mutate(rate = round(rate, digits = 1)) %>% 
+  #
+  tidyr::pivot_wider(names_from  = indigenous_status,
+                     names_vary  = "slowest",
+                     values_from = c(number, rate)) %>% 
+  #
+  dplyr::arrange(year) %>% 
+  #
+  flextable::flextable() %>%
+  #
+  flextable::set_header_labels(values = c("Year", "Yes\n(n)", "Yes\n(rate)", "No\n(n)", "No\n(rate)")) %>%
+  #
+  flextable::add_header_row(values    = c(" ", "Identified as Aboriginal and/or Torres Strait Islander"),
+                            colwidths = c(1, 4)) %>%
+  #
+  flextable::valign(valign = "bottom",
+                    part   = "header") %>%
+  #
+  flextable::align(j = 1,
+                   align = "left",
+                   part  = "body") %>%
+  #
+  flextable::align(j = c(2:5),
+                   align = "right",
+                   part  = "body") %>%
+  #
+  flextable::fontsize(size = 10,
+                      part = "all") %>%
+  #
+  flextable::bold(part = "header") %>%
+  #
+  flextable::width(j = 1,
+                   width = 0.75) %>%
+  #
+  flextable::width(j = 2:5,
+                   width = 1.5) %>%
+  #
+  flextable::line_spacing(space = 0.75,
+                          part  = "body")
+```
+
+#### Data notes:
+ 
+::: {custom-style="Footnotes"}
+`r knitr::asis_output(note_data_ctg_suicide)`
+
+`r knitr::asis_output(note_caveat_underidentification)`
+:::
+
+\newpage
+
+```{r}
+# Figure 10N-3
 f_caption_figure("Number of deaths due to suicide for Aboriginal and/or Torres Strait Islander people, Victoria, by sex and year, 2018-2023")
 
 suicide_agesex %>% 
@@ -368,7 +488,7 @@ suicide_agesex %>%
 :::
 
 ```{r}
-# Figure 10N-3
+# Figure 10N-4
 f_caption_figure("Number of deaths due to suicide for Aboriginal and/or Torres Strait Islander people, Victoria, by age and sex, 2018-2023")
 
 suicide_agesex %>% 
@@ -420,10 +540,8 @@ suicide_agesex %>%
 `r knitr::asis_output(note_caveat_underidentification)`
 :::
 
-\newpage
-
 ```{r}
-# Table 10N-2
+# Table 10N-3
 f_caption_table("Number of deaths due to suicide for Aboriginal and/or Torres Strait Islander people, Victoria, by age and sex, 2018-2023")
 
 suicide_agesex %>% 
@@ -597,7 +715,7 @@ mortality_cause <- mortality_cause %>%
 \newpage
 
 ```{r}
-# Figure 10N-4
+# Figure 10N-5
 f_caption_figure("Leading causes of death for Aboriginal and/or Torres Strait Islander people, Victoria, 2023")
 
 mortality_cause %>% 
@@ -649,7 +767,7 @@ mortality_cause %>%
 :::
 
 ```{r}
-# Figure 10N-5
+# Figure 10N-6
 f_caption_figure("Leading causes of death for Aboriginal and/or Torres Strait Islander males, Victoria, 2023")
 
 mortality_cause %>% 
@@ -701,7 +819,7 @@ mortality_cause %>%
 :::
 
 ```{r}
-# Figure 10N-6
+# Figure 10N-7
 f_caption_figure("Leading causes of death for Aboriginal and/or Torres Strait Islander females, Victoria, 2023")
 
 mortality_cause %>% 
@@ -755,7 +873,7 @@ mortality_cause %>%
 \newpage
 
 ```{r}
-# Table 10N-3
+# Table 10N-4
 f_caption_table("Leading causes of death for Aboriginal and/or Torres Strait Islander people, Victoria, by sex, 2023")
 
 mortality_cause %>%
@@ -871,7 +989,7 @@ mortality_life <- mortality_life %>%
 :::
 
 ```{r}
-# Figure 10N-7
+# Figure 10N-8
 f_caption_figure("Life expectancy at birth, Australia, by Aboriginal and/or Torres Strait Islander status, sex, and year of birth, 2005-2007 to 2020-2022")
 
 mortality_life %>% 
@@ -898,7 +1016,7 @@ mortality_life %>%
 :::
 
 ```{r}
-# Figure 10N-8
+# Figure 10N-9
 f_caption_figure("Difference in life expectancy at birth for Aboriginal and/or Torres Strait Islander children and non-Aboriginal and/or Torres Strait Islander children, Australia, by sex and year of birth, 2005-2007 to 2020-2022")
 
 mortality_life %>% 
@@ -919,7 +1037,7 @@ mortality_life %>%
 :::
 
 ```{r}
-# Table 10N-4
+# Table 10N-5
 f_caption_table("Life expectancy at birth (years), Australia, by Aboriginal and/or Torres Strait Islander status, sex, and year of birth, 2005-2007 to 2020-2022")
 
 mortality_life %>% 
